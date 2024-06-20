@@ -35,7 +35,7 @@ A guide for installing prerequisite is available [here](./VeerFiles/VEERGUIDE.md
 1. Clone this repository to your local machine:
 
 ```bash
-git clone https://github.com/awasay905/Fast-Fourier-Transform-Using-RISC-V-Vector-Instructions
+git clone https://github.com/awasay905/Fast-Fourier-Transform-Using-RISC-V-Vector-Instructions.git
 cd Fast-Fourier-Transform-Using-RISC-V-Vector-Instructions
 ```
 
