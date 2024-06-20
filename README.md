@@ -35,8 +35,8 @@ A guide for installing prerequisite is available [here](./VeerFiles/VEERGUIDE.md
 1. Clone this repository to your local machine:
 
 ```bash
-git clone https://github.com/yourusername/fft-riscv-vector
-cd fft-riscv-vector
+git clone https://github.com/awasay905/Fast-Fourier-Transform-Using-RISC-V-Vector-Instructions
+cd Fast-Fourier-Transform-Using-RISC-V-Vector-Instructions
 ```
 
 2. At the end of the assmebly file, look for .data section, there will be two data named real and imaginary. They are the real and imaginary part of the input you can to perform FFT/IFFT on. Change them according to your need (making sure the imput is of power of 2). After this, change the number of dataSize variable according to the size of data. Save the file
