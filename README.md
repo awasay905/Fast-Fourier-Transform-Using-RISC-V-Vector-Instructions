@@ -29,7 +29,7 @@ Before setting up and running the simulation, ensure you have the following prer
 - [VeeR-ISS RISC-V Simulator](https://github.com/chipsalliance/VeeR-ISS)
 - [Verilator](https://verilator.org/guide/latest/install.html) (Tested on Version 5.006)
 
-A guide for installing prerequisite is available [here](./VeerFiles/VEERQUIDE.md).
+A guide for installing prerequisite is available [here](./VeerFiles/VEERGUIDE.md).
 ## Simulation Instructions
 
 1. Clone this repository to your local machine:
