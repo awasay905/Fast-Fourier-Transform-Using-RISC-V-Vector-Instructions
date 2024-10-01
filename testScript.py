@@ -228,6 +228,27 @@ def run(type, real, imag, array_size):
 
     return (result, cycles)
 
+def generate_data(data_type, size):
+    """Generate data based on the specified type."""
+    if data_type == 'linear':
+        return [i for i in range(size)]
+    elif data_type == 'constant':
+        return [5.0] * size
+    elif data_type == 'random_float':
+        return np.random.rand(size).tolist()
+    elif data_type == 'random_int':
+        return np.random.randint(0, 100, size).tolist()
+    elif data_type == 'powers_of_two':
+        return [2 ** i for i in range(size)]
+    elif data_type == 'sine_wave':
+        return [np.sin(2 * np.pi * i / size) for i in range(size)]
+    elif data_type == 'exponential':
+        return [np.exp(i / size) for i in range(size)]
+    elif data_type == 'alternating':
+        return [(-1) ** i * 5.0 for i in range(size)]
+    else:
+        raise ValueError("Unsupported data type!")
+    
 
 # Performs FFT and IFFT on array of n size, of real and imag. if hardcoded if flase then simple floats will be used
 def test(array_size, real = [], imag = [], hardcoded = False):
@@ -236,91 +257,108 @@ def test(array_size, real = [], imag = [], hardcoded = False):
         imag = [i * 2 for i in range(array_size)]  
 
     npFFTresult = npFFT(real, imag)
-    npIFFTresult = npIFFT(real, imag)
+    #npIFFTresult = npIFFT(real, imag)
+    npIFFTresult = []
     FFTresult, FFTcycles = run('FFT', real, imag, array_size)
-    IFFTresults, IFFTcycles = run('IFFT', FFTresult.real, FFTresult.imag, array_size)
+    #IFFTresults, IFFTcycles = run('IFFT', FFTresult.real, FFTresult.imag, array_size)
+    IFFTresults, IFFTcycles = [], 0
     vFFTresult, vFFTcycles = run('vFFT', real, imag, array_size)
-    vIFFTresult, vIFFTcycles = run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
+    #vIFFTresult, vIFFTcycles = run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
+    vIFFTresult, vIFFTcycles = [], 0
 
     return [npFFTresult, npIFFTresult, FFTresult, FFTcycles, IFFTresults, IFFTcycles, vFFTresult, vFFTcycles, vIFFTresult, vIFFTcycles]
 
 
-results = []
-sizes = [2**i for i in range(4, 14)]  # From 16 to 8192
+
+
+data_types = [
+    'linear', 'constant', 'random_float', 'random_int',
+    'powers_of_two', 'sine_wave', 'exponential', 'alternating'
+]
+
+results_by_type = {data_type: [] for data_type in data_types}
+sizes = [2**i for i in range(4, 8)]  # From 16 to 8192
+
 for size in sizes:
-    result = test(size)
-    results.append({
-        'size': size,
-        'npFFT': result[0],
-        'npIFFT': result[1],
-        'FFT': result[2],
-        'FFT_cycles': result[3],
-        'IFFT': result[4],
-        'IFFT_cycles': result[5],
-        'vFFT': result[6],
-        'vFFT_cycles': result[7],
-        'vIFFT': result[8],
-        'vIFFT_cycles': result[9],
-    })
+    for data_type in data_types:
+        real = generate_data(data_type, size)
+        imag = generate_data(data_type, size)  
+        result = test(size, real, imag)
+        results_by_type[data_type].append({
+            'size': size,
+            'data_type': data_type,
+            'npFFT': result[0],
+            'npIFFT': result[1],
+            'FFT': result[2],
+            'FFT_cycles': result[3],
+            'IFFT': result[4],
+            'IFFT_cycles': result[5],
+            'vFFT': result[6],
+            'vFFT_cycles': result[7],
+            'vIFFT': result[8],
+            'vIFFT_cycles': result[9],
+        })
 
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
-# Convert results to DataFrame for easier analysis
-df = pd.DataFrame(results)
-
-# Report generation
 with PdfPages('FFT_IFFT_Analysis_Report.pdf') as pdf:
-    # Report: Difference between NumPy FFT and vFFT
-    plt.figure()
-    plt.title('Difference between NumPy FFT and vFFT')
-    for index, row in df.iterrows():
-        plt.plot(row['npFFT'].real, label='NumPy FFT Real', color='blue')
-        plt.plot(row['vFFT'].real, label='vFFT Real', color='red', linestyle='--')
-    plt.xlabel('Index')
-    plt.ylabel('Value')
-    plt.legend()
-    pdf.savefig()  # saves the current figure into a pdf page
-    plt.close()
+    # Loop through each data type for reports
+    for data_type, results in results_by_type.items():
+        # Report: Difference between NumPy FFT and vFFT
+        plt.figure()
+        plt.title(f'Difference between NumPy FFT and vFFT for {data_type}')
+        for result in results:
+            plt.plot(result['npFFT'].real, label='NumPy FFT Real', color='blue')
+            plt.plot(result['vFFT'].real, label='vFFT Real', color='red', linestyle='--')
+        plt.xlabel('Index')
+        plt.ylabel('Value')
+        plt.legend()
+        pdf.savefig()  # saves the current figure into a pdf page
+        plt.close()
 
-    # Report: Difference between NumPy IFFT and vIFFT
-    plt.figure()
-    plt.title('Difference between NumPy IFFT and vIFFT')
-    for index, row in df.iterrows():
-        plt.plot(row['npIFFT'].real, label='NumPy IFFT Real', color='blue')
-        plt.plot(row['vIFFT'].real, label='vIFFT Real', color='red', linestyle='--')
-    plt.xlabel('Index')
-    plt.ylabel('Value')
-    plt.legend()
-    pdf.savefig()  # saves the current figure into a pdf page
-    plt.close()
+        # Report: Difference between NumPy IFFT and vIFFT
+        plt.figure()
+        plt.title(f'Difference between NumPy IFFT and vIFFT for {data_type}')
+        for result in results:
+            plt.plot(result['npIFFT'].real, label='NumPy IFFT Real', color='blue')
+            plt.plot(result['vIFFT'].real, label='vIFFT Real', color='red', linestyle='--')
+        plt.xlabel('Index')
+        plt.ylabel('Value')
+        plt.legend()
+        pdf.savefig()  # saves the current figure into a pdf page
+        plt.close()
 
-    # Report: Comparison of cycles used
-    plt.figure()
-    plt.title('CPU Cycles Comparison: FFT and vFFT')
-    plt.plot(df['size'], df['FFT_cycles'], label='FFT Cycles', marker='o')
-    plt.plot(df['size'], df['vFFT_cycles'], label='vFFT Cycles', marker='o')
-    plt.xlabel('Array Size')
-    plt.ylabel('CPU Cycles')
-    plt.xscale('log')
-    plt.legend()
-    pdf.savefig()  # saves the current figure into a pdf page
-    plt.close()
+        # Report: Comparison of cycles used
+        plt.figure()
+        plt.title(f'CPU Cycles Comparison: FFT and vFFT for {data_type}')
+        sizes = [result['size'] for result in results]  # Extract sizes for plotting
+        fft_cycles = [result['FFT_cycles'] for result in results]
+        vfft_cycles = [result['vFFT_cycles'] for result in results]
+        plt.plot(sizes, fft_cycles, label='FFT Cycles', marker='o')
+        plt.plot(sizes, vfft_cycles, label='vFFT Cycles', marker='o')
+        plt.xlabel('Array Size')
+        plt.ylabel('CPU Cycles')
+        plt.xscale('log')
+        plt.legend()
+        pdf.savefig()  # saves the current figure into a pdf page
+        plt.close()
 
-    plt.figure()
-    plt.title('CPU Cycles Comparison: IFFT and vIFFT')
-    plt.plot(df['size'], df['IFFT_cycles'], label='IFFT Cycles', marker='o')
-    plt.plot(df['size'], df['vIFFT_cycles'], label='vIFFT Cycles', marker='o')
-    plt.xlabel('Array Size')
-    plt.ylabel('CPU Cycles')
-    plt.xscale('log')
-    plt.legend()
-    pdf.savefig()  # saves the current figure into a pdf page
-    plt.close()
+        # Repeat for IFFT and vIFFT cycles
+        plt.figure()
+        plt.title(f'CPU Cycles Comparison: IFFT and vIFFT for {data_type}')
+        ifft_cycles = [result['IFFT_cycles'] for result in results]
+        vifft_cycles = [result['vIFFT_cycles'] for result in results]
+        plt.plot(sizes, ifft_cycles, label='IFFT Cycles', marker='o')
+        plt.plot(sizes, vifft_cycles, label='vIFFT Cycles', marker='o')
+        plt.xlabel('Array Size')
+        plt.ylabel('CPU Cycles')
+        plt.xscale('log')
+        plt.legend()
+        pdf.savefig()  # saves the current figure into a pdf page
+        plt.close()
 
-# Show results in the console
-print(df)
 
 print("Reports and graphs have been saved to 'FFT_IFFT_Analysis_Report.pdf'.")
 exit(0)
