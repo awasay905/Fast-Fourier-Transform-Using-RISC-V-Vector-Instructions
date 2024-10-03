@@ -315,12 +315,12 @@ def test(array_size, real = [], imag = [], hardcoded = False):
         real =   [i * 2 for i in range(array_size)] 
         imag = [i * 2 for i in range(array_size)]  
 
-    npFFTresult, npFFTcycles, npFFTtime = [], 0, 0 # npFFT(real, imag)
-    npIFFTresult, npIFFTcycles,npIFFTtime = [], 0, 0 # npIFFT(real, imag)
+    npFFTresult, npFFTcycles, npFFTtime = npFFT(real, imag)
+    npIFFTresult, npIFFTcycles,npIFFTtime =  npIFFT(npFFTresult.real, npFFTresult.imag)
     FFTresult, FFTcycles, FFTtime= run('FFT', real, imag, array_size)
-    IFFTresults, IFFTcycles, IFFtime = [], 0, 0 # run('IFFT', FFTresult.real, FFTresult.imag, array_size)
+    IFFTresults, IFFTcycles, IFFtime =  run('IFFT', FFTresult.real, FFTresult.imag, array_size)
     vFFTresult, vFFTcycles, vFFTtime = run('vFFT', real, imag, array_size)
-    vIFFTresult, vIFFTcycles, vIFFTtime = [], 0, 0 # run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
+    vIFFTresult, vIFFTcycles, vIFFTtime =  run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
 
     return [npFFTresult,npFFTcycles,npFFTtime, npIFFTresult,npIFFTcycles, npIFFTtime, FFTresult, FFTcycles,FFTtime, IFFTresults, IFFTcycles, IFFtime,vFFTresult, vFFTcycles, vFFTtime,vIFFTresult, vIFFTcycles,vIFFTtime]
 
@@ -487,7 +487,7 @@ import numpy as np
 import os
 
 results_csv = 'test_results.csv' # FIle which will have the results
-sizes = [2 ** i for i in range(2, 15)]  # Define the sizes for testing. must be power of 2
+sizes = [2 ** i for i in range(2, 16)]  # Define the sizes for testing. must be power of 2
 results = loadResults(results_csv, sizes)
 # Run tests only if the file does not exist or append new sizes
 
@@ -498,26 +498,197 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 df = pd.DataFrame(results)
 
-with PdfPages('FFT_IFFT_Analysis_Reportv3.pdf') as pdf:    
+with PdfPages('FFT_IFFT_Analysis_Reportv4.pdf') as pdf:    
+    
     # Cycle Count Differnce Between FFT (and IFFT diff color) of Different input sizes
     plt.figure(figsize=(10, 5))
     plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='o')
     plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='o')
-    plt.plot(df['size'], pd.DataFrame([i*i for i in df['size']]), label='O(n*2)', marker='o')
-    plt.plot(df['size'], pd.DataFrame([5*i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
+    plt.plot(df['size'], pd.DataFrame([i*i/3 for i in df['size']]), label='O(n*2)', marker='o')
+    plt.plot(df['size'], pd.DataFrame([3*i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
     plt.xscale('log')
-    plt.ylabel('Cycles Count') #TODO
+    plt.ylabel('Cycles Count') #TODO change name
     plt.xlabel('Input Size (log scale)')
     plt.legend()
     plt.title("Instructions Count Difference Between FFT and vFFT")
     pdf.savefig()
     plt.close()
 
+    for idx, row in df.iterrows():
+        size = row['size']
+        np_fft_result = np.array(row['npFFTresult'])
+        fft_result = np.array(row['FFTresult'])
+        v_fft_result = np.array(row['vFFTresult'])
+
+        # Create a figure for each size
+        plt.figure(figsize=(10, 6))
+
+        # Plot the real part of the results
+        plt.plot(np.real(np_fft_result), label='npFFT Real', color='blue', linestyle='-')
+        plt.plot(np.real(fft_result), label='FFT Real', color='green', linestyle='--')
+        plt.plot(np.real(v_fft_result), label='vFFT Real', color='red', linestyle='-.')
+
+        # Optionally plot the imaginary part (uncomment the following lines if needed)
+        plt.plot(np.imag(np_fft_result), label='npFFT Imaginary', color='blue', linestyle=':')
+        plt.plot(np.imag(fft_result), label='FFT Imaginary', color='green', linestyle=':')
+        plt.plot(np.imag(v_fft_result), label='vFFT Imaginary', color='red', linestyle=':')
+
+        # Set the title and labels
+        plt.title(f'FFT Results Comparison for Size {size}')
+        plt.xlabel('Index')
+        plt.ylabel('Value')
+        plt.legend()
+
+        # Show the plot
+        pdf.savefig()
+        plt.close()
+    
+    for idx, row in df.iterrows():
+        size = row['size']
+        np_fft_result = np.array(row['npFFTresult'])
+        fft_result = np.array(row['FFTresult'])
+        v_fft_result = np.array(row['vFFTresult'])
+
+        # Calculate errors (Mean Squared Error)
+        fft_real_error = np.mean((np.real(fft_result) - np.real(np_fft_result))**2)
+        fft_imag_error = np.mean((np.imag(fft_result) - np.imag(np_fft_result))**2)
+        v_fft_real_error = np.mean((np.real(v_fft_result) - np.real(np_fft_result))**2)
+        v_fft_imag_error = np.mean((np.imag(v_fft_result) - np.imag(np_fft_result))**2)
+
+        # Plot the error for real and imaginary parts
+        plt.figure(figsize=(10, 6))
+
+        plt.bar(['FFT Real Error', 'vFFT Real Error'], [fft_real_error, v_fft_real_error], color=['blue', 'red'], alpha=0.7)
+        plt.bar(['FFT Imag Error', 'vFFT Imag Error'], [fft_imag_error, v_fft_imag_error], color=['blue', 'red'], alpha=0.7, hatch='/')
+
+        # Set the title and labels
+        plt.title(f'FFT Error Comparison for Size {size}')
+        plt.ylabel('Mean Squared Error')
+        plt.xlabel('Error Type')
+        
+        # Show the plot
+        pdf.savefig()
+        plt.close()
+        # Run time difference between different input sizes for np, normal, vectorized
+    def calculate_errors(df):
+        sizes = []
+        fft_mse, fft_ae, fft_max_error = [], [], []
+        vfft_mse, vfft_ae, vfft_max_error = [], [], []
+        
+        for idx, row in df.iterrows():
+            size = row['size']
+            sizes.append(size)
+            
+            # Convert npFFT, FFT, and vFFT results to numpy arrays
+            np_fft_result = np.array(row['npFFTresult'])
+            fft_result = np.array(row['FFTresult'])
+            v_fft_result = np.array(row['vFFTresult'])
+            
+            # Calculate errors for FFT
+            fft_diff = np_fft_result - fft_result
+            fft_mse.append(np.mean(np.abs(fft_diff)**2))  # MSE
+            fft_ae.append(np.mean(np.abs(fft_diff)))      # Absolute Error
+            fft_max_error.append(np.max(np.abs(fft_diff)))  # Max Error
+            
+            # Calculate errors for vFFT
+            vfft_diff = np_fft_result - v_fft_result
+            vfft_mse.append(np.mean(np.abs(vfft_diff)**2))  # MSE
+            vfft_ae.append(np.mean(np.abs(vfft_diff)))      # Absolute Error
+            vfft_max_error.append(np.max(np.abs(vfft_diff)))  # Max Error
+
+        return sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error
+
+    # Function to plot the error metrics
+    def plot_error_metrics(sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error):
+        plt.figure(figsize=(10, 6))
+
+        # Plot MSE for FFT and vFFT
+        plt.plot(sizes, fft_mse, label='FFT MSE', color='blue', linestyle='-')
+        plt.plot(sizes, vfft_mse, label='vFFT MSE', color='red', linestyle='--')
+
+        # Plot Absolute Error for FFT and vFFT
+        plt.plot(sizes, fft_ae, label='FFT Absolute Error', color='green', linestyle='-')
+        plt.plot(sizes, vfft_ae, label='vFFT Absolute Error', color='orange', linestyle='--')
+
+        # Plot Max Error for FFT and vFFT
+        plt.plot(sizes, fft_max_error, label='FFT Max Error', color='purple', linestyle='-')
+        plt.plot(sizes, vfft_max_error, label='vFFT Max Error', color='brown', linestyle='--')
+
+        # Set labels and title
+        plt.xlabel('Size')
+        plt.ylabel('Error')
+        plt.title('Error Comparison for FFT and vFFT vs npFFT')
+        plt.legend()
+        plt.grid(True)
+        pdf.savefig()
+        plt.close()
+
+    # Call functions to calculate errors and plot them
+    sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error = calculate_errors(df)
+    plot_error_metrics(sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error)
     
     
-    # Run time difference between different input sizes for np, normal, vectorized
     
-    
+    # TRYING NEW ERROR SHOWING
+    plt.figure(figsize=(12, 8))
+
+    sizes = []
+    fft_mse, fft_ae, fft_max_error, fft_sd = [], [], [], []
+    vfft_mse, vfft_ae, vfft_max_error, vfft_sd = [], [], [], []
+
+    # Loop over each row in the dataframe to calculate errors for each size
+    for idx, row in df.iterrows():
+        size = row['size']
+        sizes.append(size)
+        
+        # Convert npFFT, FFT, and vFFT results to numpy arrays
+        np_fft_result = np.array(row['npFFTresult'])
+        fft_result = np.array(row['FFTresult'])
+        v_fft_result = np.array(row['vFFTresult'])
+        
+        # Calculate errors for FFT
+        fft_diff = np_fft_result - fft_result
+        fft_mse.append(np.mean(np.abs(fft_diff)**2))  # Mean Squared Error (MSE)
+        fft_ae.append(np.mean(np.abs(fft_diff)))      # Absolute Error (AE)
+        fft_max_error.append(np.max(np.abs(fft_diff)))  # Max Error (Max)
+        fft_sd.append(np.std(np.abs(fft_diff)))       # Standard Deviation (SD)
+        
+        # Calculate errors for vFFT
+        vfft_diff = np_fft_result - v_fft_result
+        vfft_mse.append(np.mean(np.abs(vfft_diff)**2))  # MSE
+        vfft_ae.append(np.mean(np.abs(vfft_diff)))      # Absolute Error
+        vfft_max_error.append(np.max(np.abs(vfft_diff)))  # Max Error
+        vfft_sd.append(np.std(np.abs(vfft_diff)))       # Standard Deviation (SD)
+
+    # Plotting the errors for FFT
+    plt.plot(sizes, fft_mse, label='FFT MSE', color='blue', linestyle='-')
+    plt.plot(sizes, fft_ae, label='FFT Absolute Error', color='green', linestyle='-')
+    plt.plot(sizes, fft_max_error, label='FFT Max Error', color='purple', linestyle='-')
+    plt.plot(sizes, fft_sd, label='FFT Std Dev', color='cyan', linestyle='-')
+
+    # Plotting the errors for vFFT
+    plt.plot(sizes, vfft_mse, label='vFFT MSE', color='red', linestyle='--')
+    plt.plot(sizes, vfft_ae, label='vFFT Absolute Error', color='orange', linestyle='--')
+    plt.plot(sizes, vfft_max_error, label='vFFT Max Error', color='brown', linestyle='--')
+    plt.plot(sizes, vfft_sd, label='vFFT Std Dev', color='magenta', linestyle='--')
+
+    # Set labels and title
+    plt.xlabel('Size')
+    plt.ylabel('Error')
+    plt.title('Error and Standard Deviation Comparison for FFT and vFFT vs npFFT')
+
+    # Show legend
+    plt.legend()
+
+    # Show grid
+    plt.grid(True)
+
+    # Save the figure to a file
+    pdf.savefig()
+    plt.close()
+
+
+
     # avg_errors = [np.mean(error) for error in errors]
     # sizes = [result['size'] for result in results]
 
