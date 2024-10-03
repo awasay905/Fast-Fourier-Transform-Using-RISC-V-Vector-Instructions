@@ -237,6 +237,7 @@ def process_file(file_name, deleteFiles = True):
     
 # runs FFT, IFFT, vFFT, vIFFT (type), returning the result, cycles and time taken used in a tuple
 def run(type, real, imag, array_size, deleteFiles = True):
+    print(f"RUnning {type} on array size {array_size}")
     import numpy as np
     assemblyFile = f"./PythonFiles/tempFiles/temp{type}.s"
     logFile = f"./PythonFiles/tempFiles/temp{type}log.txt"
@@ -262,12 +263,12 @@ def test(array_size, real = [], imag = [], hardcoded = False):
         real =   [i * 2 for i in range(array_size)] 
         imag = [i * 2 for i in range(array_size)]  
 
-    npFFTresult, npFFTcycles, npFFTtime = npFFT(real, imag)
-    npIFFTresult, npIFFTcycles,npIFFTtime = npIFFT(real, imag)
+    npFFTresult, npFFTcycles, npFFTtime = [], 0, 0 # npFFT(real, imag)
+    npIFFTresult, npIFFTcycles,npIFFTtime = [], 0, 0 # npIFFT(real, imag)
     FFTresult, FFTcycles, FFTtime= run('FFT', real, imag, array_size)
-    IFFTresults, IFFTcycles, IFFtime = run('IFFT', FFTresult.real, FFTresult.imag, array_size)
+    IFFTresults, IFFTcycles, IFFtime = [], 0, 0 # run('IFFT', FFTresult.real, FFTresult.imag, array_size)
     vFFTresult, vFFTcycles, vFFTtime = run('vFFT', real, imag, array_size)
-    vIFFTresult, vIFFTcycles, vIFFTtime = run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
+    vIFFTresult, vIFFTcycles, vIFFTtime = [], 0, 0 # run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
 
     return [npFFTresult,npFFTcycles,npFFTtime, npIFFTresult,npIFFTcycles, npIFFTtime, FFTresult, FFTcycles,FFTtime, IFFTresults, IFFTcycles, IFFtime,vFFTresult, vFFTcycles, vFFTtime,vIFFTresult, vIFFTcycles,vIFFTtime]
 
@@ -298,34 +299,159 @@ def calculate_error(type1, type2):
     return error
 
 
+    
+    
 # TESTING
-sizes = [2 ** i for i in range(2, 10)]  # From 16 to 8192
-results = []
 
+import csv
+import numpy as np
+import os
+
+# Define the CSV file
+results_csv = 'test_results.csv'
+
+# Define the sizes for testing
+sizes = [2 ** i for i in range(2, 17)]  # Example: From 16 to 8192
+
+# Helper functions to serialize/deserialize complex numbers and NumPy arrays
+def serialize_array(array):
+    """Convert a NumPy array or list to a string format for CSV."""
+    return ','.join(map(str, array))
+
+def deserialize_array(array_str):
+    """Convert a serialized string back to a NumPy array, handling empty strings."""
+    if not array_str:
+        return np.array([])  # Return an empty array if the string is empty
+    return np.array([complex(x) if 'j' in x else float(x) for x in array_str.split(',') if x])
+
+
+# Function to save the results
+def save_results_to_csv(results, append=False):
+    mode = 'a' if append else 'w'  # 'a' for append, 'w' for overwrite
+    header = ['size', 'npFFTresult', 'npFFTcycles', 'npFFTtime', 'npIFFTresult', 'npIFFTcycles', 'npIFFTtime', 
+              'FFTresult', 'FFTcycles', 'FFTtime', 'IFFTresults', 'IFFTcycles', 'IFFtime', 
+              'vFFTresult', 'vFFTcycles', 'vFFTtime', 'vIFFTresult', 'vIFFTcycles', 'vIFFTtime']
+    
+    with open(results_csv, mode, newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header only if the file is new or in write mode
+        if not append or os.stat(results_csv).st_size == 0:
+            writer.writerow(header)
+        
+        for result in results:
+            writer.writerow([
+                result['size'],
+                serialize_array(result['npFFTresult']),
+                result['npFFTcycles'],
+                result['npFFTtime'],
+                serialize_array(result['npIFFTresult']),
+                result['npIFFTcycles'],
+                result['npIFFTtime'],
+                serialize_array(result['FFTresult']),
+                result['FFTcycles'],
+                result['FFTtime'],
+                serialize_array(result['IFFTresults']),
+                result['IFFTcycles'],
+                result['IFFtime'],
+                serialize_array(result['vFFTresult']),
+                result['vFFTcycles'],
+                result['vFFTtime'],
+                serialize_array(result['vIFFTresult']),
+                result['vIFFTcycles'],
+                result['vIFFTtime']
+            ])
+
+# Function to load results from the CSV
+def load_results_from_csv():
+    csv.field_size_limit(10**8)  # Set limit to 1,000,000 bytes (or adjust as necessary)
+    results = []
+    with open(results_csv, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            results.append({
+                'size': int(row['size']),
+                'npFFTresult': deserialize_array(row['npFFTresult']),
+                'npFFTcycles': int(row['npFFTcycles']),
+                'npFFTtime': float(row['npFFTtime']),
+                'npIFFTresult': deserialize_array(row['npIFFTresult']),
+                'npIFFTcycles': int(row['npIFFTcycles']),
+                'npIFFTtime': float(row['npIFFTtime']),
+                'FFTresult': deserialize_array(row['FFTresult']),
+                'FFTcycles': int(row['FFTcycles']),
+                'FFTtime': float(row['FFTtime']),
+                'IFFTresults': deserialize_array(row['IFFTresults']),
+                'IFFTcycles': int(row['IFFTcycles']),
+                'IFFtime': float(row['IFFtime']),
+                'vFFTresult': deserialize_array(row['vFFTresult']),
+                'vFFTcycles': int(row['vFFTcycles']),
+                'vFFTtime': float(row['vFFTtime']),
+                'vIFFTresult': deserialize_array(row['vIFFTresult']),
+                'vIFFTcycles': int(row['vIFFTcycles']),
+                'vIFFTtime': float(row['vIFFTtime']),
+            })
+    return results
+
+# Run tests only if the file does not exist or append new sizes
+if os.path.exists(results_csv):
+    # Load existing results
+    results = load_results_from_csv()
+    print("Loaded results from CSV.")
+else:
+    # Run tests and save results to CSV
+    results = []
+    for size in sizes:
+        result = test(size)
+        results.append({
+            'size': size,
+            'npFFTresult': result[0],
+            'npFFTcycles': result[1],
+            'npFFTtime': result[2],
+            'npIFFTresult': result[3],
+            'npIFFTcycles': result[4],
+            'npIFFTtime': result[5],
+            'FFTresult': result[6],
+            'FFTcycles': result[7],
+            'FFTtime': result[8],
+            'IFFTresults': result[9],
+            'IFFTcycles': result[10],
+            'IFFtime': result[11],
+            'vFFTresult': result[12],
+            'vFFTcycles': result[13],
+            'vFFTtime': result[14],
+            'vIFFTresult': result[15],
+            'vIFFTcycles': result[16],
+            'vIFFTtime': result[17]
+        })
+    save_results_to_csv(results)
+    print("Test results saved to CSV.")
+
+loaded_sizes = [result['size'] for result in results]
+print(loaded_sizes)
 for size in sizes:
+    if size in loaded_sizes: continue
     result = test(size)
     results.append({
-        'size' : size,
-        'npFFTresult' : result[0],
-        'npFFTcycles': result[1],
-        'npFFTtime': result[2],
-        'npIFFTresult': result[3],
-        'npIFFTcycles': result[4],
-        'npIFFTtime': result[5],
-        'FFTresult': result[6],
-        'FFTcycles': result[7],
-        'FFTtime': result[8],
-        'IFFTresults': result[9],
-        'IFFTcycles': result[10],
-        'IFFtime': result[11],
-        'vFFTresult' : result[12] ,
-        'vFFTcycles' : result[13], 
-        'vFFTtime': result[14],
-        'vIFFTresult': result[15],
-        'vIFFTcycles': result[16],
-        'vIFFTtime': result[17]
-    });           
-    
+            'size': size,
+            'npFFTresult': result[0],
+            'npFFTcycles': result[1],
+            'npFFTtime': result[2],
+            'npIFFTresult': result[3],
+            'npIFFTcycles': result[4],
+            'npIFFTtime': result[5],
+            'FFTresult': result[6],
+            'FFTcycles': result[7],
+            'FFTtime': result[8],
+            'IFFTresults': result[9],
+            'IFFTcycles': result[10],
+            'IFFtime': result[11],
+            'vFFTresult': result[12],
+            'vFFTcycles': result[13],
+            'vFFTtime': result[14],
+            'vIFFTresult': result[15],
+            'vIFFTcycles': result[16],
+            'vIFFTtime': result[17]
+    })
+save_results_to_csv(results)
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -333,13 +459,13 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 df = pd.DataFrame(results)
 
-with PdfPages('FFT_IFFT_Analysis_Reportv2.pdf') as pdf:    
+with PdfPages('FFT_IFFT_Analysis_Reportv3.pdf') as pdf:    
     # Cycle Count Differnce Between FFT (and IFFT diff color) of Different input sizes
     plt.figure(figsize=(10, 5))
     plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='o')
     plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='o')
     plt.plot(df['size'], pd.DataFrame([i*i for i in df['size']]), label='O(n*2)', marker='o')
-    plt.plot(df['size'], pd.DataFrame([i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
+    plt.plot(df['size'], pd.DataFrame([5*i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
     plt.xscale('log')
     plt.ylabel('Cycles Count') #TODO
     plt.xlabel('Input Size (log scale)')
