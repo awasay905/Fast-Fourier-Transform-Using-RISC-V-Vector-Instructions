@@ -74,9 +74,24 @@ def writeArrayToAssemblyFile(input_file, output_file, real, imag, n, type):
 
     return
 
+# Function to check for the pattern in the buffer
+def check_pattern(lines):
+    # Split each line and check if the 7th column has the desired values
+    required_values = ["00123000", "00123456", "00234000", "00234567", "00345000", "00345678"]
+    found_values = []
+
+    for line in lines:
+        columns = line.split()
+        if len(columns) > 6:  # Check if there are enough columns
+            value = columns[6]  # Get the 7th column (index 6)
+            if value in required_values:
+                found_values.append(value)
+
+    # Check if we found all required values
+    return all(value in found_values for value in required_values)
+
 # Runs assembly code on Veer, saving the log to logFile and returning cycle count and time taken
-def runOnVeer(assemblyFile, logFile, deleteFiles = True):
-    print(deleteFiles)
+def runOnVeer(assemblyFile, logFile, deleteFiles = True, smallLog = True):
     import subprocess as sp
     import re
     import time
@@ -88,24 +103,19 @@ def runOnVeer(assemblyFile, logFile, deleteFiles = True):
     timetaken = 0
 
     # Commands to run
-    if deleteFiles:
-        commands = [
-            f"{GCC_PREFIX}-gcc {ABI} -lgcc -T{LINK} -o {tempPath}.exe {assemblyFile} -nostartfiles -lm",
-            f"rm -f {assemblyFile}", # delete the assembly code after its done being translated
-            f"{GCC_PREFIX}-objcopy -O verilog {tempPath}.exe {tempPath}.hex",
-            # f"{GCC_PREFIX}-objdump -S {tempPath}.exe > {tempPath}.dis",
-            # f"rm -f {tempPath}.dis" # im not even sure why we are disassemblign it
-            f"rm -f {tempPath}.exe",
-            f"whisper -x {tempPath}.hex -s 0x80000000 --tohost 0xd0580000 -f {logFile} --configfile ./VeerFiles/whisper.json",
-            f"rm -f {tempPath}.hex", # delete the  hex file after its done being translated
-        ]
-    else:
-        commands = [
-            f"{GCC_PREFIX}-gcc {ABI} -lgcc -T{LINK} -o {tempPath}.exe {assemblyFile} -nostartfiles -lm",
-            f"{GCC_PREFIX}-objcopy -O verilog {tempPath}.exe {tempPath}.hex",
-            f"{GCC_PREFIX}-objdump -S {tempPath}.exe > {tempPath}.dis",
-            f"whisper -x {tempPath}.hex -s 0x80000000 --tohost 0xd0580000 -f {logFile} --configfile ./VeerFiles/whisper.json"
-        ]
+    commands = [
+        f"{GCC_PREFIX}-gcc {ABI} -lgcc -T{LINK} -o {tempPath}.exe {assemblyFile} -nostartfiles -lm",
+        f"rm -f {assemblyFile}" if deleteFiles else "",  # Delete assembly code after translation if deleteFiles is True
+        f"{GCC_PREFIX}-objcopy -O verilog {tempPath}.exe {tempPath}.hex",
+        f"rm -f {tempPath}.exe" if deleteFiles else "",  # Remove executable if deleteFiles is True
+        # f"{GCC_PREFIX}-objdump -S {tempPath}.exe > {tempPath}.dis" if not deleteFiles else f"rm -f {tempPath}.dis",  # Optional disassembly
+        f"whisper -x {tempPath}.hex -s 0x80000000 --tohost 0xd0580000 -f /dev/stdout --configfile ./VeerFiles/whisper.json" if smallLog 
+        else f"whisper -x {tempPath}.hex -s 0x80000000 --tohost 0xd0580000 -f {logFile} --configfile ./VeerFiles/whisper.json" ,
+        f"rm -f {tempPath}.hex" if deleteFiles else "",  # Delete hex file after translation if deleteFiles is True
+    ]
+
+    # Remove any empty strings from the commands
+    commands = [cmd for cmd in commands if cmd]  # Filter out empty strings
 
     retired_instructions = None  # Variable to store the number of retired instructions
 
@@ -115,15 +125,57 @@ def runOnVeer(assemblyFile, logFile, deleteFiles = True):
     # Execute the commands one by one
     for command in commands:
         try:
-            start_time = time.time()
-            result = sp.run(command,capture_output=True, shell=True, text=True)
-            end_time = time.time()
-            timetaken = end_time - start_time # And save the time
-            if result.stderr:
-                # Search for the "Retired X instructions" pattern in the stderr
-                match = re.search(instruction_regex, result.stderr)
-                if match:
-                    retired_instructions = match.group(1)  # Extract the number
+            if "whisper" in command and smallLog:
+                process = sp.Popen(command, shell=True, stdout = sp.PIPE, stderr= sp.PIPE, text = True)
+                
+                buffer_size = 10
+                lines_buffer = []
+                recorded_log = []
+                pattern_found = False
+                
+                while True:
+                    output = process.stdout.readline()
+                    if output == '' and process.poll() is not None:
+                        break  # Exit if the process is done
+                    
+                    if output:  # Process only if there's output
+                        # Add the output to the buffer
+                        lines_buffer.append(output)
+                        if len(lines_buffer) > buffer_size:
+                            lines_buffer.pop(0)  # Maintain only the last 10 lines
+
+                        # Check for the pattern in the 7th column
+                        if not pattern_found:
+                            if check_pattern(lines_buffer):
+                                pattern_found = True
+                                recorded_log.extend(lines_buffer)
+                                print(f"[PATTERN DETECTED]: Starting to record output from here on.")
+
+                        # If pattern found, record all lines after it
+                        if pattern_found:
+                            recorded_log.append(output)
+                            
+                            
+                with open(logFile, 'w') as file:
+                    file.writelines(recorded_log)
+                
+                stderr_output = process.stderr.read()
+                if stderr_output:
+                    # Search for the "Retired X instructions" pattern in the stderr
+                    match = re.search(instruction_regex, stderr_output)
+                    if match:
+                        retired_instructions = match.group(1)  # Extract the number
+        
+            else:
+                start_time = time.time()
+                result = sp.run(command,capture_output=True, shell=True, text=True)
+                end_time = time.time()
+                timetaken = end_time - start_time # And save the time
+                if result.stderr:
+                    # Search for the "Retired X instructions" pattern in the stderr
+                    match = re.search(instruction_regex, result.stderr)
+                    if match:
+                        retired_instructions = match.group(1)  # Extract the number
         
         except sp.CalledProcessError as e:
             print(f"An error {e}occurred while executing: {command}")
@@ -250,7 +302,7 @@ def run(type, real, imag, array_size, deleteFiles = True):
         exit(-1)
     
     cycles, time = runOnVeer(assemblyFile, logFile, deleteFiles)
-    realOutput, imagOutput = process_file(logFile, deleteFiles)
+    realOutput, imagOutput = process_file(logFile, False)
 
     result =  np.array(realOutput) + 1j * np.array(imagOutput)  
 
@@ -298,21 +350,6 @@ def calculate_error(type1, type2):
         
     return error
 
-
-    
-    
-# TESTING
-
-import csv
-import numpy as np
-import os
-
-# Define the CSV file
-results_csv = 'test_results.csv'
-
-# Define the sizes for testing
-sizes = [2 ** i for i in range(2, 17)]  # Example: From 16 to 8192
-
 # Helper functions to serialize/deserialize complex numbers and NumPy arrays
 def serialize_array(array):
     """Convert a NumPy array or list to a string format for CSV."""
@@ -323,8 +360,7 @@ def deserialize_array(array_str):
     if not array_str:
         return np.array([])  # Return an empty array if the string is empty
     return np.array([complex(x) if 'j' in x else float(x) for x in array_str.split(',') if x])
-
-
+    
 # Function to save the results
 def save_results_to_csv(results, append=False):
     mode = 'a' if append else 'w'  # 'a' for append, 'w' for overwrite
@@ -363,7 +399,7 @@ def save_results_to_csv(results, append=False):
 
 # Function to load results from the CSV
 def load_results_from_csv():
-    csv.field_size_limit(10**8)  # Set limit to 1,000,000 bytes (or adjust as necessary)
+    csv.field_size_limit(10**10)  # Set limit to 1,000,000 bytes (or adjust as necessary)
     results = []
     with open(results_csv, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -391,13 +427,10 @@ def load_results_from_csv():
             })
     return results
 
-# Run tests only if the file does not exist or append new sizes
-if os.path.exists(results_csv):
-    # Load existing results
-    results = load_results_from_csv()
-    print("Loaded results from CSV.")
-else:
-    # Run tests and save results to CSV
+# RUNS FFT/IFFT on arrays of different sizes on dirrent real/imag array (pass array counraninf array) (if hardcodedgiven)). 
+# TODO custom array values are not implemented yet
+# Returns an array conatinign output of each test
+def runTests(sizes,real = [], imag = [], hardcoded = False): 
     results = []
     for size in sizes:
         result = test(size)
@@ -422,36 +455,42 @@ else:
             'vIFFTcycles': result[16],
             'vIFFTtime': result[17]
         })
-    save_results_to_csv(results)
-    print("Test results saved to CSV.")
+        
+    return results
 
-loaded_sizes = [result['size'] for result in results]
-print(loaded_sizes)
-for size in sizes:
-    if size in loaded_sizes: continue
-    result = test(size)
-    results.append({
-            'size': size,
-            'npFFTresult': result[0],
-            'npFFTcycles': result[1],
-            'npFFTtime': result[2],
-            'npIFFTresult': result[3],
-            'npIFFTcycles': result[4],
-            'npIFFTtime': result[5],
-            'FFTresult': result[6],
-            'FFTcycles': result[7],
-            'FFTtime': result[8],
-            'IFFTresults': result[9],
-            'IFFTcycles': result[10],
-            'IFFtime': result[11],
-            'vFFTresult': result[12],
-            'vFFTcycles': result[13],
-            'vFFTtime': result[14],
-            'vIFFTresult': result[15],
-            'vIFFTcycles': result[16],
-            'vIFFTtime': result[17]
-    })
-save_results_to_csv(results)
+def checkLoad(sizes, loaded_sizes, results):
+    sizes_to_load = [size for size in sizes if size not in loaded_sizes]
+    if len(sizes_to_load) > 0: 
+        results.extend(runTests(sizes_to_load)) 
+        save_results_to_csv(results)
+    
+def loadResults(results_csv, sizes):
+    if os.path.exists(results_csv):
+        results = load_results_from_csv()
+        print("Loaded results from CSV.")
+        loaded_sizes = [result['size'] for result in results]
+        checkLoad(sizes, loaded_sizes, results)
+    else:
+      # Run tests and save results to CSV
+      results = runTests(sizes)
+      save_results_to_csv(results)
+      print("Test results saved to CSV.")
+      
+    return results
+
+
+    
+# TESTING
+
+import csv
+import numpy as np
+import os
+
+results_csv = 'test_results.csv' # FIle which will have the results
+sizes = [2 ** i for i in range(2, 15)]  # Define the sizes for testing. must be power of 2
+results = loadResults(results_csv, sizes)
+# Run tests only if the file does not exist or append new sizes
+
 
 import matplotlib.pyplot as plt
 import pandas as pd
