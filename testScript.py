@@ -1,16 +1,28 @@
 import numpy as np
 
-# calculates FFT using numoy library
+# Calculate FFT using numpy, returns the FFT, cycles and the time taken to calculate
 def npFFT(real, imag):
+    import time
+    start_time = time.time()
     complex_numbers = np.array(real) + 1j * np.array(imag)
-    return np.fft.fft(complex_numbers)
+    fft = np.fft.fft(complex_numbers)
+    end_time = time.time()
+    elapsed_time = end_time - start_time  
+    npFFTcycles = -1  #implement later
+    return fft, npFFTcycles,elapsed_time
 
-# calculates IFFT using numoy library
+# Calculate IFFT using numpy, returns the IFFT, cycles and the time taken to calculate
 def npIFFT(real, imag):
+    import time
+    start_time = time.time()
     complex_numbers = np.array(real) + 1j * np.array(imag)
-    return np.fft.fft(complex_numbers)
+    ifft = np.fft.ifft(complex_numbers)
+    end_time = time.time()
+    elapsed_time = end_time - start_time  
+    npIFFTcycles = -1  #implement later
+    return ifft, npIFFTcycles,elapsed_time
 
-# Helper function to format the array elements for assmebly fire
+# Formats given array to string for a readable format for assembly file
 def format_array(array):
     formatted_lines = []
     current_line = ".float "
@@ -25,7 +37,7 @@ def format_array(array):
         formatted_lines.append(current_line.strip(", "))
     return formatted_lines
 
-# Write array values to  the assembly file
+# Write array values to the assembly file data section
 def writeArrayToAssemblyFile(input_file, output_file, real, imag, n, type):
     # Read the input file and find the .data section
     with open(input_file, 'r') as file:
@@ -34,7 +46,7 @@ def writeArrayToAssemblyFile(input_file, output_file, real, imag, n, type):
     # Insert the array values after .data
     for i, line in enumerate(lines):    
         if "call" in line and "XXXX" in line:
-            lines[lines.index(line)] = f"    call {type}                      # Apply {type} on the arrays\n"
+            lines[lines.index(line)] = f"    call {type}"
         if ".data" in line:
             # Insert real array
             lines.insert(i + 1, "real:\n")
@@ -62,55 +74,65 @@ def writeArrayToAssemblyFile(input_file, output_file, real, imag, n, type):
 
     return
 
-# Runs code of assemblyFiile on Veer, saving the log to logFile and returning cycle count
-def runOnVeer(assemblyFile, logFile):
+# Runs assembly code on Veer, saving the log to logFile and returning cycle count and time taken
+def runOnVeer(assemblyFile, logFile, deleteFiles = True):
+    print(deleteFiles)
     import subprocess as sp
     import re
+    import time
     GCC_PREFIX = "riscv32-unknown-elf"
     ABI = "-march=rv32gcv -mabi=ilp32f"
     LINK = "./VeerFiles/link.ld"
     fileName = assemblyFile[assemblyFile.rfind('/') + 1:-2]  # removes .s  and gets file name from the file path
     tempPath = f"./PythonFiles/tempFiles/{fileName}"
-
+    timetaken = 0
 
     # Commands to run
-    commands = [
-        f"{GCC_PREFIX}-gcc {ABI} -lgcc -T{LINK} -o {tempPath}.exe {assemblyFile} -nostartfiles -lm",
-        f"{GCC_PREFIX}-objcopy -O verilog {tempPath}.exe {tempPath}.hex",
-        f"{GCC_PREFIX}-objdump -S {tempPath}.exe > {tempPath}.dis",
-        f"whisper -x {tempPath}.hex -s 0x80000000 --tohost 0xd0580000 -f {logFile} --configfile ./VeerFiles/whisper.json"
-    ]
+    if deleteFiles:
+        commands = [
+            f"{GCC_PREFIX}-gcc {ABI} -lgcc -T{LINK} -o {tempPath}.exe {assemblyFile} -nostartfiles -lm",
+            f"rm -f {assemblyFile}", # delete the assembly code after its done being translated
+            f"{GCC_PREFIX}-objcopy -O verilog {tempPath}.exe {tempPath}.hex",
+            # f"{GCC_PREFIX}-objdump -S {tempPath}.exe > {tempPath}.dis",
+            # f"rm -f {tempPath}.dis" # im not even sure why we are disassemblign it
+            f"rm -f {tempPath}.exe",
+            f"whisper -x {tempPath}.hex -s 0x80000000 --tohost 0xd0580000 -f {logFile} --configfile ./VeerFiles/whisper.json",
+            f"rm -f {tempPath}.hex", # delete the  hex file after its done being translated
+        ]
+    else:
+        commands = [
+            f"{GCC_PREFIX}-gcc {ABI} -lgcc -T{LINK} -o {tempPath}.exe {assemblyFile} -nostartfiles -lm",
+            f"{GCC_PREFIX}-objcopy -O verilog {tempPath}.exe {tempPath}.hex",
+            f"{GCC_PREFIX}-objdump -S {tempPath}.exe > {tempPath}.dis",
+            f"whisper -x {tempPath}.hex -s 0x80000000 --tohost 0xd0580000 -f {logFile} --configfile ./VeerFiles/whisper.json"
+        ]
 
     retired_instructions = None  # Variable to store the number of retired instructions
 
     # Regular expression to find "Retired X instructions"
-    instruction_regex = r"Retired\s+(\d+)\s+instructions"
-
-    #print(f"Running {assemblyFile} in Veer")
+    instruction_regex = r"Retired\s+(\d+)\s+instructions"  
+    
     # Execute the commands one by one
     for command in commands:
         try:
-            result = sp.run(command,capture_output=True, shell=True, check=False, text=True)
-
+            start_time = time.time()
+            result = sp.run(command,capture_output=True, shell=True, text=True)
+            end_time = time.time()
+            timetaken = end_time - start_time # And save the time
             if result.stderr:
                 # Search for the "Retired X instructions" pattern in the stderr
                 match = re.search(instruction_regex, result.stderr)
                 if match:
                     retired_instructions = match.group(1)  # Extract the number
-                    #print(result.stderr)
         
         except sp.CalledProcessError as e:
-            if "whisper" in command:
-                break
-            print(f"An error occurred while executing: {command}")
+            print(f"An error {e}occurred while executing: {command}")
             print(f"Error: {e}")
             exit(-1)
-        
-    #print(f"Numbers of cycles used: {retired_instructions}")
+            
+    return int(retired_instructions), timetaken
 
-    return retired_instructions
-
-# onverts HEX code value to float from log file
+# Convert hex values array to float array. HEX should be IEEE format
 def hex_to_float(hex_array):
     import struct
     float_array = []
@@ -133,8 +155,7 @@ def hex_to_float(hex_array):
     
     return float_array
 
-# reads file and gives start and end index of load. basically it finds the pattern i used in assembly coe
-# for easily logging of outptu
+# Find index for the markers places in assembly code
 def find_log_index(file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -171,9 +192,8 @@ def find_log_index(file_path):
     # If the pattern line is found, call helper and process the file normally
     return start_index, end_index
 
-
-# reads the log file , and saves all the hex values between given indexs
-def process_file(file_name):
+# Reads log file and extract real and imag float values
+def process_file(file_name, deleteFiles = True):
     start_index, end_index = find_log_index(file_name)
     real = []
     imag = []
@@ -182,6 +202,10 @@ def process_file(file_name):
         with open(file_name, 'r') as file:
             lines = file.readlines()
         
+        if deleteFiles:
+            import os
+            os.remove(file_name)
+            
         # Ensure start and end indexes are within the valid range
         start_index = max(0, start_index)
         end_index = min(len(lines), end_index)
@@ -203,14 +227,16 @@ def process_file(file_name):
                             imag.append(words[index_of_cflw - 1])
                             save_to_real = True
 
+        
+        
         return hex_to_float(real), hex_to_float(imag)
     
     except FileNotFoundError:
         print(f"The file {file_name} does not exist.")
         return real, imag
     
-# runs FFT, IFFT, vFFT, vIFFT (type), returning the result, and cycles used in a tuple
-def run(type, real, imag, array_size):
+# runs FFT, IFFT, vFFT, vIFFT (type), returning the result, cycles and time taken used in a tuple
+def run(type, real, imag, array_size, deleteFiles = True):
     import numpy as np
     assemblyFile = f"./PythonFiles/tempFiles/temp{type}.s"
     logFile = f"./PythonFiles/tempFiles/temp{type}log.txt"
@@ -222,142 +248,200 @@ def run(type, real, imag, array_size):
         print("ERROR")
         exit(-1)
     
-    cycles = runOnVeer(assemblyFile, logFile)
-    realOutput, imagOutput = process_file(logFile)
+    cycles, time = runOnVeer(assemblyFile, logFile, deleteFiles)
+    realOutput, imagOutput = process_file(logFile, deleteFiles)
+
     result =  np.array(realOutput) + 1j * np.array(imagOutput)  
 
-    return (result, cycles)
-
-def generate_data(data_type, size):
-    """Generate data based on the specified type."""
-    if data_type == 'linear':
-        return [i for i in range(size)]
-    elif data_type == 'constant':
-        return [5.0] * size
-    elif data_type == 'random_float':
-        return np.random.rand(size).tolist()
-    elif data_type == 'random_int':
-        return np.random.randint(0, 100, size).tolist()
-    elif data_type == 'powers_of_two':
-        return [2 ** i for i in range(size)]
-    elif data_type == 'sine_wave':
-        return [np.sin(2 * np.pi * i / size) for i in range(size)]
-    elif data_type == 'exponential':
-        return [np.exp(i / size) for i in range(size)]
-    elif data_type == 'alternating':
-        return [(-1) ** i * 5.0 for i in range(size)]
-    else:
-        raise ValueError("Unsupported data type!")
-    
+    return (result, cycles, time)
 
 # Performs FFT and IFFT on array of n size, of real and imag. if hardcoded if flase then simple floats will be used
+# Returns FFT, IFFT and time taken in performing them on numpy, riscv, and nevctorized risc v
 def test(array_size, real = [], imag = [], hardcoded = False):
     if not hardcoded:
         real =   [i * 2 for i in range(array_size)] 
         imag = [i * 2 for i in range(array_size)]  
 
-    npFFTresult = npFFT(real, imag)
-    #npIFFTresult = npIFFT(real, imag)
-    npIFFTresult = []
-    FFTresult, FFTcycles = run('FFT', real, imag, array_size)
-    #IFFTresults, IFFTcycles = run('IFFT', FFTresult.real, FFTresult.imag, array_size)
-    IFFTresults, IFFTcycles = [], 0
-    vFFTresult, vFFTcycles = run('vFFT', real, imag, array_size)
-    #vIFFTresult, vIFFTcycles = run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
-    vIFFTresult, vIFFTcycles = [], 0
+    npFFTresult, npFFTcycles, npFFTtime = npFFT(real, imag)
+    npIFFTresult, npIFFTcycles,npIFFTtime = npIFFT(real, imag)
+    FFTresult, FFTcycles, FFTtime= run('FFT', real, imag, array_size)
+    IFFTresults, IFFTcycles, IFFtime = run('IFFT', FFTresult.real, FFTresult.imag, array_size)
+    vFFTresult, vFFTcycles, vFFTtime = run('vFFT', real, imag, array_size)
+    vIFFTresult, vIFFTcycles, vIFFTtime = run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
 
-    return [npFFTresult, npIFFTresult, FFTresult, FFTcycles, IFFTresults, IFFTcycles, vFFTresult, vFFTcycles, vIFFTresult, vIFFTcycles]
+    return [npFFTresult,npFFTcycles,npFFTtime, npIFFTresult,npIFFTcycles, npIFFTtime, FFTresult, FFTcycles,FFTtime, IFFTresults, IFFTcycles, IFFtime,vFFTresult, vFFTcycles, vFFTtime,vIFFTresult, vIFFTcycles,vIFFTtime]
+
+# Changes Veer vector size to number of bytes
+def changeVectorSize(size):
+    import json
+    import os
+    file_path = os.path.join("VeerFiles", "whisper.json")
+    
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+
+    data["vector"]["bytes_per_vec"] = size
+
+    with open(file_path, 'w') as file:
+        json.dump(data, file, indent=4)
+            
+    return
+    
+# Function to calculate error between two arrays
+def calculate_error(type1, type2):
+    type1 = np.array(type1)
+    type2 = np.array(type2)
+        
+    # Calculate the error (magnitude of the difference)
+    error = np.abs(type1 - type2)
+        
+    return error
 
 
-
-
-data_types = [
-    'linear', 'constant', 'random_float', 'random_int',
-    'powers_of_two', 'sine_wave', 'exponential', 'alternating'
-]
-
-results_by_type = {data_type: [] for data_type in data_types}
-sizes = [2**i for i in range(4, 8)]  # From 16 to 8192
+# TESTING
+sizes = [2 ** i for i in range(2, 10)]  # From 16 to 8192
+results = []
 
 for size in sizes:
-    for data_type in data_types:
-        real = generate_data(data_type, size)
-        imag = generate_data(data_type, size)  
-        result = test(size, real, imag)
-        results_by_type[data_type].append({
-            'size': size,
-            'data_type': data_type,
-            'npFFT': result[0],
-            'npIFFT': result[1],
-            'FFT': result[2],
-            'FFT_cycles': result[3],
-            'IFFT': result[4],
-            'IFFT_cycles': result[5],
-            'vFFT': result[6],
-            'vFFT_cycles': result[7],
-            'vIFFT': result[8],
-            'vIFFT_cycles': result[9],
-        })
+    result = test(size)
+    results.append({
+        'size' : size,
+        'npFFTresult' : result[0],
+        'npFFTcycles': result[1],
+        'npFFTtime': result[2],
+        'npIFFTresult': result[3],
+        'npIFFTcycles': result[4],
+        'npIFFTtime': result[5],
+        'FFTresult': result[6],
+        'FFTcycles': result[7],
+        'FFTtime': result[8],
+        'IFFTresults': result[9],
+        'IFFTcycles': result[10],
+        'IFFtime': result[11],
+        'vFFTresult' : result[12] ,
+        'vFFTcycles' : result[13], 
+        'vFFTtime': result[14],
+        'vIFFTresult': result[15],
+        'vIFFTcycles': result[16],
+        'vIFFTtime': result[17]
+    });           
+    
 
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
-with PdfPages('FFT_IFFT_Analysis_Report.pdf') as pdf:
+df = pd.DataFrame(results)
+
+with PdfPages('FFT_IFFT_Analysis_Reportv2.pdf') as pdf:    
+    # Cycle Count Differnce Between FFT (and IFFT diff color) of Different input sizes
+    plt.figure(figsize=(10, 5))
+    plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='o')
+    plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='o')
+    plt.plot(df['size'], pd.DataFrame([i*i for i in df['size']]), label='O(n*2)', marker='o')
+    plt.plot(df['size'], pd.DataFrame([i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
+    plt.xscale('log')
+    plt.ylabel('Cycles Count') #TODO
+    plt.xlabel('Input Size (log scale)')
+    plt.legend()
+    plt.title("Instructions Count Difference Between FFT and vFFT")
+    pdf.savefig()
+    plt.close()
+
+    
+    
+    # Run time difference between different input sizes for np, normal, vectorized
+    
+    
+    # avg_errors = [np.mean(error) for error in errors]
+    # sizes = [result['size'] for result in results]
+
+    # # Average error
+    # plt.figure(figsize=(10, 5))
+    # plt.plot(sizes, avg_errors, marker='o', label='Average Error')
+    # plt.xscale('log')
+    # plt.xlabel('Input Size (log scale)')
+    # plt.ylabel('Average Error')
+    # plt.title('Average Error of vFFT vs npFFT')
+    # plt.legend()
+    # plt.grid()
+    # pdf.savefig()
+    # plt.close()
+    
+    # # Maximum error
+    # max_errors = [np.max(error) for error in errors]
+
+    # plt.figure(figsize=(10, 5))
+    # plt.plot(sizes, max_errors, marker='o', color='r', label='Max Error')
+    # plt.xscale('log')
+    # plt.xlabel('Input Size (log scale)')
+    # plt.ylabel('Max Error')
+    # plt.title('Maximum Error of vFFT vs npFFT')
+    # plt.legend()
+    # plt.grid()
+    # pdf.savefig()
+    # plt.close()
+    
+    
+    # # Standard deviation of errors
+    # std_errors = [np.std(error) for error in errors]
+
+    # plt.figure(figsize=(10, 5))
+    # plt.plot(sizes, std_errors, marker='o', color='g', label='Std Error')
+    # plt.xscale('log')
+    # plt.xlabel('Input Size (log scale)')
+    # plt.ylabel('Error Standard Deviation')
+    # plt.title('Error Standard Deviation of vFFT vs npFFT')
+    # plt.legend()
+    # plt.grid()
+    # pdf.savefig()
+    # plt.close()
+    
+    # # Histogram of errors for the largest size
+    # largest_size_index = np.argmax(sizes)
+    # largest_errors = errors[largest_size_index]
+
+    # plt.figure(figsize=(10, 5))
+    # plt.hist(largest_errors, bins=30, alpha=0.7, color='purple')
+    # plt.xlabel('Error Magnitude')
+    # plt.ylabel('Frequency')
+    # plt.title(f'Error Histogram for Input Size {sizes[largest_size_index]}')
+    # plt.grid()
+    # pdf.savefig()
+    # plt.close()
+
+
+
     # Loop through each data type for reports
-    for data_type, results in results_by_type.items():
-        # Report: Difference between NumPy FFT and vFFT
-        plt.figure()
-        plt.title(f'Difference between NumPy FFT and vFFT for {data_type}')
-        for result in results:
-            plt.plot(result['npFFT'].real, label='NumPy FFT Real', color='blue')
-            plt.plot(result['vFFT'].real, label='vFFT Real', color='red', linestyle='--')
-        plt.xlabel('Index')
-        plt.ylabel('Value')
-        plt.legend()
-        pdf.savefig()  # saves the current figure into a pdf page
-        plt.close()
+    # for data_type, results in results_by_type.items():
+    #     # Report: Difference between NumPy FFT and vFFT
+        
+    #     for result in results:
+    #         plt.figure()
+    #         plt.title(f'Difference between NumPy FFT and vFFT for {data_type} for size {result['size']}')
+    #         plt.plot(result['npFFT'].real - result['vFFT'].real, label='Real Part Diff', color='blue')
+    #         plt.plot(result['npFFT'].imag - result['vFFT'].imag, label='Imag Part Diff', color='red')
+    #         plt.xlabel('Index')
+    #         plt.ylabel('Value')
+    #         plt.legend()
+    #         pdf.savefig()  # saves the current figure into a pdf page
+    #         plt.close()
 
-        # Report: Difference between NumPy IFFT and vIFFT
-        plt.figure()
-        plt.title(f'Difference between NumPy IFFT and vIFFT for {data_type}')
-        for result in results:
-            plt.plot(result['npIFFT'].real, label='NumPy IFFT Real', color='blue')
-            plt.plot(result['vIFFT'].real, label='vIFFT Real', color='red', linestyle='--')
-        plt.xlabel('Index')
-        plt.ylabel('Value')
-        plt.legend()
-        pdf.savefig()  # saves the current figure into a pdf page
-        plt.close()
-
-        # Report: Comparison of cycles used
-        plt.figure()
-        plt.title(f'CPU Cycles Comparison: FFT and vFFT for {data_type}')
-        sizes = [result['size'] for result in results]  # Extract sizes for plotting
-        fft_cycles = [result['FFT_cycles'] for result in results]
-        vfft_cycles = [result['vFFT_cycles'] for result in results]
-        plt.plot(sizes, fft_cycles, label='FFT Cycles', marker='o')
-        plt.plot(sizes, vfft_cycles, label='vFFT Cycles', marker='o')
-        plt.xlabel('Array Size')
-        plt.ylabel('CPU Cycles')
-        plt.xscale('log')
-        plt.legend()
-        pdf.savefig()  # saves the current figure into a pdf page
-        plt.close()
-
-        # Repeat for IFFT and vIFFT cycles
-        plt.figure()
-        plt.title(f'CPU Cycles Comparison: IFFT and vIFFT for {data_type}')
-        ifft_cycles = [result['IFFT_cycles'] for result in results]
-        vifft_cycles = [result['vIFFT_cycles'] for result in results]
-        plt.plot(sizes, ifft_cycles, label='IFFT Cycles', marker='o')
-        plt.plot(sizes, vifft_cycles, label='vIFFT Cycles', marker='o')
-        plt.xlabel('Array Size')
-        plt.ylabel('CPU Cycles')
-        plt.xscale('log')
-        plt.legend()
-        pdf.savefig()  # saves the current figure into a pdf page
-        plt.close()
+    # for data_type, results in results_by_type.items():
+    #     # Report: Comparison of cycles used
+    #     plt.figure()
+    #     plt.title(f'CPU Cycles Comparison: FFT and vFFT for {data_type}')
+    #     sizes = [result['size'] for result in results]  # Extract sizes for plotting
+    #     fft_cycles = [result['FFT_cycles'] for result in results]
+    #     vfft_cycles = [result['vFFT_cycles'] for result in results]
+    #     plt.plot(sizes, fft_cycles, label='FFT Cycles', marker='o')
+    #     plt.plot(sizes, vfft_cycles, label='vFFT Cycles', marker='o')
+    #     plt.xlabel('Array Size')
+    #     plt.ylabel('CPU Cycles')
+    #     plt.xscale('log')
+    #     plt.legend()
+    #     pdf.savefig()  # saves the current figure into a pdf page
+    #     plt.close()
 
 
 print("Reports and graphs have been saved to 'FFT_IFFT_Analysis_Report.pdf'.")
