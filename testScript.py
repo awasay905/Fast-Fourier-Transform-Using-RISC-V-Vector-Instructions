@@ -1,27 +1,3 @@
-import numpy as np
-
-# Calculate FFT using numpy, returns the FFT, cycles and the time taken to calculate
-def npFFT(real, imag):
-    import time
-    start_time = time.time()
-    complex_numbers = np.array(real) + 1j * np.array(imag)
-    fft = np.fft.fft(complex_numbers)
-    end_time = time.time()
-    elapsed_time = end_time - start_time  
-    npFFTcycles = -1  #implement later
-    return fft, npFFTcycles,elapsed_time
-
-# Calculate IFFT using numpy, returns the IFFT, cycles and the time taken to calculate
-def npIFFT(real, imag):
-    import time
-    start_time = time.time()
-    complex_numbers = np.array(real) + 1j * np.array(imag)
-    ifft = np.fft.ifft(complex_numbers)
-    end_time = time.time()
-    elapsed_time = end_time - start_time  
-    npIFFTcycles = -1  #implement later
-    return ifft, npIFFTcycles,elapsed_time
-
 # Formats given array to string for a readable format for assembly file
 def format_array(array):
     formatted_lines = []
@@ -74,7 +50,7 @@ def writeArrayToAssemblyFile(input_file, output_file, real, imag, n, type):
 
     return
 
-# Function to check for the pattern in the buffer
+# Function to check for the pattern in the buffer to start reading log
 def check_pattern(lines):
     # Split each line and check if the 7th column has the desired values
     required_values = ["00123000", "00123456", "00234000", "00234567", "00345000", "00345678"]
@@ -90,7 +66,7 @@ def check_pattern(lines):
     # Check if we found all required values
     return all(value in found_values for value in required_values)
 
-# Runs assembly code on Veer, saving the log to logFile and returning cycle count and time taken
+# Runs assembly code on Veer, saves the log to logFile if deletefiles false, and returns the cpu cycle count and time taken
 def runOnVeer(assemblyFile, logFile, deleteFiles = True, smallLog = True):
     import subprocess as sp
     import re
@@ -122,11 +98,12 @@ def runOnVeer(assemblyFile, logFile, deleteFiles = True, smallLog = True):
     # Regular expression to find "Retired X instructions"
     instruction_regex = r"Retired\s+(\d+)\s+instructions"  
     
+    start_time = time.time()
     # Execute the commands one by one
     for command in commands:
         try:
             if "whisper" in command and smallLog:
-                process = sp.Popen(command, shell=True, stdout = sp.PIPE, stderr= sp.PIPE, text = True)
+                process = sp.Popen(command, shell=True, stdout = sp.PIPE, stderr= sp.PIPE, text = True) # run this twice. once for capturing time , twice for reading logs
                 
                 buffer_size = 10
                 lines_buffer = []
@@ -155,7 +132,8 @@ def runOnVeer(assemblyFile, logFile, deleteFiles = True, smallLog = True):
                         if pattern_found:
                             recorded_log.append(output)
                             
-                            
+               
+                           
                 with open(logFile, 'w') as file:
                     file.writelines(recorded_log)
                 
@@ -167,10 +145,7 @@ def runOnVeer(assemblyFile, logFile, deleteFiles = True, smallLog = True):
                         retired_instructions = match.group(1)  # Extract the number
         
             else:
-                start_time = time.time()
                 result = sp.run(command,capture_output=True, shell=True, text=True)
-                end_time = time.time()
-                timetaken = end_time - start_time # And save the time
                 if result.stderr:
                     # Search for the "Retired X instructions" pattern in the stderr
                     match = re.search(instruction_regex, result.stderr)
@@ -181,6 +156,9 @@ def runOnVeer(assemblyFile, logFile, deleteFiles = True, smallLog = True):
             print(f"An error {e}occurred while executing: {command}")
             print(f"Error: {e}")
             exit(-1)
+            
+    end_time = time.time()
+    timetaken = end_time - start_time
             
     return int(retired_instructions), timetaken
 
@@ -245,7 +223,7 @@ def find_log_index(file_path):
     return start_index, end_index
 
 # Reads log file and extract real and imag float values
-def process_file(file_name, deleteFiles = True):
+def process_file(file_name, deleteTempFiles = True):
     start_index, end_index = find_log_index(file_name)
     real = []
     imag = []
@@ -254,7 +232,7 @@ def process_file(file_name, deleteFiles = True):
         with open(file_name, 'r') as file:
             lines = file.readlines()
         
-        if deleteFiles:
+        if deleteTempFiles:
             import os
             os.remove(file_name)
             
@@ -287,8 +265,8 @@ def process_file(file_name, deleteFiles = True):
         print(f"The file {file_name} does not exist.")
         return real, imag
     
-# runs FFT, IFFT, vFFT, vIFFT (type), returning the result, cycles and time taken used in a tuple
-def run(type, real, imag, array_size, deleteFiles = True):
+# runs "type", returning the result, cycles and time taken used in a tuple
+def run(type, real, imag, array_size, deleteTempFiles = True, deleteLogFiles = True):
     print(f"RUnning {type} on array size {array_size}")
     import numpy as np
     assemblyFile = f"./PythonFiles/tempFiles/temp{type}.s"
@@ -301,26 +279,64 @@ def run(type, real, imag, array_size, deleteFiles = True):
         print("ERROR")
         exit(-1)
     
-    cycles, time = runOnVeer(assemblyFile, logFile, deleteFiles)
-    realOutput, imagOutput = process_file(logFile, False)
+    cycles, time = runOnVeer(assemblyFile, logFile, deleteTempFiles)
+    realOutput, imagOutput = process_file(logFile, deleteLogFiles)
 
     result =  np.array(realOutput) + 1j * np.array(imagOutput)  
 
     return (result, cycles, time)
 
+# Calculate FFT using numpy, returns the FFT, cycles and the time taken to calculate
+def npFFT(real, imag):
+    import time
+    start_time = time.time()
+    complex_numbers = np.array(real) + 1j * np.array(imag)
+    fft = np.fft.fft(complex_numbers)
+    end_time = time.time()
+    elapsed_time = end_time - start_time  
+    npFFTcycles = -1  #implement later
+    return fft, npFFTcycles,elapsed_time
+
+# Calculate IFFT using numpy, returns the IFFT, cycles and the time taken to calculate
+def npIFFT(real, imag):
+    import time
+    start_time = time.time()
+    complex_numbers = np.array(real) + 1j * np.array(imag)
+    ifft = np.fft.ifft(complex_numbers)
+    end_time = time.time()
+    elapsed_time = end_time - start_time  
+    npIFFTcycles = -1  #implement later
+    return ifft, npIFFTcycles,elapsed_time
+
+# Calculaye FFT using risc v assembly code simulated on veer
+def FFT(real, imag, array_size, deleteFiles = True):
+    return run('FFT', real, imag, array_size, deleteFiles)
+
+# Calculaye IFFT using risc v assembly code simulated on veer
+def IFFT(real, imag, array_size, deleteFiles = True):
+    return run('IFFT', real, imag, array_size, deleteFiles)
+
+# Calculaye FFT using vectorized risc v assembly code simulated on veer
+def vFFT(real, imag, array_size, deleteFiles = True):
+    return run('vFFT', real, imag, array_size, deleteFiles)
+
+# Calculaye IFFT using vecctorized risc v assembly code simulated on veer
+def vIFFT(real, imag, array_size, deleteFiles = True):
+    return run('vIFFT', real, imag, array_size, deleteFiles)
+
 # Performs FFT and IFFT on array of n size, of real and imag. if hardcoded if flase then simple floats will be used
 # Returns FFT, IFFT and time taken in performing them on numpy, riscv, and nevctorized risc v
-def test(array_size, real = [], imag = [], hardcoded = False):
+def computeFFT_IFFTWithBenchmarks(array_size, real = [], imag = [], hardcoded = False):
     if not hardcoded:
-        real =   [i * 2 for i in range(array_size)] 
+        real = [i * 2 for i in range(array_size)] 
         imag = [i * 2 for i in range(array_size)]  
 
     npFFTresult, npFFTcycles, npFFTtime = npFFT(real, imag)
     npIFFTresult, npIFFTcycles,npIFFTtime =  npIFFT(npFFTresult.real, npFFTresult.imag)
-    FFTresult, FFTcycles, FFTtime= run('FFT', real, imag, array_size)
-    IFFTresults, IFFTcycles, IFFtime =  run('IFFT', FFTresult.real, FFTresult.imag, array_size)
-    vFFTresult, vFFTcycles, vFFTtime = run('vFFT', real, imag, array_size)
-    vIFFTresult, vIFFTcycles, vIFFTtime =  run('vIFFT', vFFTresult.real, vFFTresult.imag, array_size)
+    FFTresult, FFTcycles, FFTtime= FFT(real, imag, array_size)
+    IFFTresults, IFFTcycles, IFFtime =  IFFT(FFTresult.real, FFTresult.imag, array_size)
+    vFFTresult, vFFTcycles, vFFTtime = vFFT(real, imag, array_size)
+    vIFFTresult, vIFFTcycles, vIFFTtime =  vIFFT(vFFTresult.real, vFFTresult.imag, array_size)
 
     return [npFFTresult,npFFTcycles,npFFTtime, npIFFTresult,npIFFTcycles, npIFFTtime, FFTresult, FFTcycles,FFTtime, IFFTresults, IFFTcycles, IFFtime,vFFTresult, vFFTcycles, vFFTtime,vIFFTresult, vIFFTcycles,vIFFTtime]
 
@@ -339,30 +355,15 @@ def changeVectorSize(size):
         json.dump(data, file, indent=4)
             
     return
-    
-# Function to calculate error between two arrays
-def calculate_error(type1, type2):
-    type1 = np.array(type1)
-    type2 = np.array(type2)
-        
-    # Calculate the error (magnitude of the difference)
-    error = np.abs(type1 - type2)
-        
-    return error
-
-# Helper functions to serialize/deserialize complex numbers and NumPy arrays
-def serialize_array(array):
-    """Convert a NumPy array or list to a string format for CSV."""
-    return ','.join(map(str, array))
-
-def deserialize_array(array_str):
-    """Convert a serialized string back to a NumPy array, handling empty strings."""
-    if not array_str:
-        return np.array([])  # Return an empty array if the string is empty
-    return np.array([complex(x) if 'j' in x else float(x) for x in array_str.split(',') if x])
-    
+  
 # Function to save the results
-def save_results_to_csv(results, append=False):
+def save_results_to_csv(results_csv,results, append=False):
+    import csv
+    import os
+    # Helper functions to serialize/deserialize complex numbers and NumPy arrays. Convert a NumPy array or list to a string format for CSV.
+    def serialize_array(array):
+        return ','.join(map(str, array))
+    
     mode = 'a' if append else 'w'  # 'a' for append, 'w' for overwrite
     header = ['size', 'npFFTresult', 'npFFTcycles', 'npFFTtime', 'npIFFTresult', 'npIFFTcycles', 'npIFFTtime', 
               'FFTresult', 'FFTcycles', 'FFTtime', 'IFFTresults', 'IFFTcycles', 'IFFtime', 
@@ -398,33 +399,58 @@ def save_results_to_csv(results, append=False):
             ])
 
 # Function to load results from the CSV
-def load_results_from_csv():
+def load_results_from_csv(results_csv, sizes):
+    import os
+    import csv
     csv.field_size_limit(10**10)  # Set limit to 1,000,000 bytes (or adjust as necessary)
+    
+    #Convert a serialized string back to a NumPy array, handling empty strings
+    def deserialize_array(array_str):
+        if not array_str:
+            return np.array([])  # Return an empty array if the string is empty
+        return np.array([complex(x) if 'j' in x else float(x) for x in array_str.split(',') if x])
+    
     results = []
-    with open(results_csv, 'r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            results.append({
-                'size': int(row['size']),
-                'npFFTresult': deserialize_array(row['npFFTresult']),
-                'npFFTcycles': int(row['npFFTcycles']),
-                'npFFTtime': float(row['npFFTtime']),
-                'npIFFTresult': deserialize_array(row['npIFFTresult']),
-                'npIFFTcycles': int(row['npIFFTcycles']),
-                'npIFFTtime': float(row['npIFFTtime']),
-                'FFTresult': deserialize_array(row['FFTresult']),
-                'FFTcycles': int(row['FFTcycles']),
-                'FFTtime': float(row['FFTtime']),
-                'IFFTresults': deserialize_array(row['IFFTresults']),
-                'IFFTcycles': int(row['IFFTcycles']),
-                'IFFtime': float(row['IFFtime']),
-                'vFFTresult': deserialize_array(row['vFFTresult']),
-                'vFFTcycles': int(row['vFFTcycles']),
-                'vFFTtime': float(row['vFFTtime']),
-                'vIFFTresult': deserialize_array(row['vIFFTresult']),
-                'vIFFTcycles': int(row['vIFFTcycles']),
-                'vIFFTtime': float(row['vIFFTtime']),
-            })
+    
+    if os.path.exists(results_csv):
+        with open(results_csv, 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                results.append({
+                    'size': int(row['size']),
+                    'npFFTresult': deserialize_array(row['npFFTresult']),
+                    'npFFTcycles': int(row['npFFTcycles']),
+                    'npFFTtime': float(row['npFFTtime']),
+                    'npIFFTresult': deserialize_array(row['npIFFTresult']),
+                    'npIFFTcycles': int(row['npIFFTcycles']),
+                    'npIFFTtime': float(row['npIFFTtime']),
+                    'FFTresult': deserialize_array(row['FFTresult']),
+                    'FFTcycles': int(row['FFTcycles']),
+                    'FFTtime': float(row['FFTtime']),
+                    'IFFTresults': deserialize_array(row['IFFTresults']),
+                    'IFFTcycles': int(row['IFFTcycles']),
+                    'IFFtime': float(row['IFFtime']),
+                    'vFFTresult': deserialize_array(row['vFFTresult']),
+                    'vFFTcycles': int(row['vFFTcycles']),
+                    'vFFTtime': float(row['vFFTtime']),
+                    'vIFFTresult': deserialize_array(row['vIFFTresult']),
+                    'vIFFTcycles': int(row['vIFFTcycles']),
+                    'vIFFTtime': float(row['vIFFTtime']),
+                })
+        
+        print("Loaded results from CSV.")
+        loaded_sizes = [result['size'] for result in results]
+        sizes_to_load = [size for size in sizes if size not in loaded_sizes]
+        if len(sizes_to_load) > 0: 
+            results.extend(runTests(sizes_to_load)) 
+            save_results_to_csv(results_csv, results)
+            
+    else:
+      # Run tests and save results to CSV
+      results = runTests(sizes)
+      save_results_to_csv(results_csv, results)
+      print("Test results saved to CSV.")
+        
     return results
 
 # RUNS FFT/IFFT on arrays of different sizes on dirrent real/imag array (pass array counraninf array) (if hardcodedgiven)). 
@@ -433,7 +459,7 @@ def load_results_from_csv():
 def runTests(sizes,real = [], imag = [], hardcoded = False): 
     results = []
     for size in sizes:
-        result = test(size)
+        result = computeFFT_IFFTWithBenchmarks(size, real, imag, hardcoded)
         results.append({
             'size': size,
             'npFFTresult': result[0],
@@ -458,37 +484,14 @@ def runTests(sizes,real = [], imag = [], hardcoded = False):
         
     return results
 
-def checkLoad(sizes, loaded_sizes, results):
-    sizes_to_load = [size for size in sizes if size not in loaded_sizes]
-    if len(sizes_to_load) > 0: 
-        results.extend(runTests(sizes_to_load)) 
-        save_results_to_csv(results)
-    
-def loadResults(results_csv, sizes):
-    if os.path.exists(results_csv):
-        results = load_results_from_csv()
-        print("Loaded results from CSV.")
-        loaded_sizes = [result['size'] for result in results]
-        checkLoad(sizes, loaded_sizes, results)
-    else:
-      # Run tests and save results to CSV
-      results = runTests(sizes)
-      save_results_to_csv(results)
-      print("Test results saved to CSV.")
-      
-    return results
 
 
-    
-# TESTING
-
-import csv
+# TESTING AND MAKING GRAPHS
 import numpy as np
-import os
 
-results_csv = 'test_results.csv' # FIle which will have the results
-sizes = [2 ** i for i in range(2, 16)]  # Define the sizes for testing. must be power of 2
-results = loadResults(results_csv, sizes)
+results_csv = 'test_resultsv3.csv' # FIle which will have the results
+sizes = [2 ** i for i in range(2, 20)]  # Define the sizes for testing. must be power of 2
+results = load_results_from_csv(results_csv, sizes)
 # Run tests only if the file does not exist or append new sizes
 
 
@@ -498,21 +501,49 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 df = pd.DataFrame(results)
 
-with PdfPages('FFT_IFFT_Analysis_Reportv4.pdf') as pdf:    
+with PdfPages('FFT_IFFT_Analysis_Reportv6.pdf') as pdf:   
     
-    # Cycle Count Differnce Between FFT (and IFFT diff color) of Different input sizes
-    plt.figure(figsize=(10, 5))
-    plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='o')
-    plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='o')
-    plt.plot(df['size'], pd.DataFrame([i*i/3 for i in df['size']]), label='O(n*2)', marker='o')
-    plt.plot(df['size'], pd.DataFrame([3*i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
+    
+    # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='D')
+    plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='x')
+    plt.ylabel('VeeR Instruction Count')
+    plt.xlabel('Input Size (log)')
     plt.xscale('log')
-    plt.ylabel('Cycles Count') #TODO change name
-    plt.xlabel('Input Size (log scale)')
     plt.legend()
     plt.title("Instructions Count Difference Between FFT and vFFT")
     pdf.savefig()
+    plt.close() 
+    
+    # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='D')
+    plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='x')
+    plt.plot(df['size'], pd.DataFrame([(i*i) for i in df['size']]), label='O(n*2)', marker='o')
+    plt.plot(df['size'], pd.DataFrame([3*i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
+    plt.ylabel('VeeR Instruction Count')
+    plt.xlabel('Input Size (log)')
+    plt.xscale('log')
+    plt.legend()
+    plt.title("Instructions Count Difference Between FFT and vFFT With Big-O")
+    pdf.savefig()
     plt.close()
+    
+    # Runtime Differnce Between npFFT, FFT and vFFT of Different input sizes
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['size'], df['npFFTtime'], label='npFFT time', marker='.')
+    plt.plot(df['size'], df['FFTtime'], label='FFT time', marker='D')
+    plt.plot(df['size'], df['vFFTtime'], label='vFFT time', marker='x')
+    plt.ylabel('Run time in millisecond')
+    plt.xlabel('Input Size (log)')
+    plt.xscale('log')
+    plt.legend()
+    plt.title("Runtime Difference Between npFFT, FFT and vFFT")
+    pdf.savefig()
+    plt.close()
+    
+    exit()
 
     for idx, row in df.iterrows():
         size = row['size']
