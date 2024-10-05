@@ -7,3 +7,4 @@ VeerFiles/TESTNV.dis
 VeerFiles/programNV.hex
 VeerFiles/logNV.txt
 PythonFiles/tempFiles/
+./test_results.csv
