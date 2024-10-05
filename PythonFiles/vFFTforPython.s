@@ -1,5 +1,5 @@
 #define STDOUT 0xd0580000
-.set SINCOSITER, 50
+.set SINCOSITER, 20
 .set vectorSize, 1024              # Change this for max num of 32 bit vector element supported by hafdware
 
 .section .text

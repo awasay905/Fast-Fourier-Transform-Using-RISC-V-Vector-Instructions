@@ -3,7 +3,7 @@ def format_array(array):
     formatted_lines = []
     current_line = ".float "
     for i, value in enumerate(array):
-        current_line += f"{value:.6f}, "
+        current_line += f"{value:.12f}, "
         if (i + 1) % 4 == 0:  # Add space after every 4th number
             current_line += " "
         if (i + 1) % 32 == 0:  # New line after every 32 numbers
@@ -126,7 +126,6 @@ def runOnVeer(assemblyFile, logFile, deleteFiles = True, smallLog = True):
                             if check_pattern(lines_buffer):
                                 pattern_found = True
                                 recorded_log.extend(lines_buffer)
-                                print(f"[PATTERN DETECTED]: Starting to record output from here on.")
 
                         # If pattern found, record all lines after it
                         if pattern_found:
@@ -267,8 +266,12 @@ def process_file(file_name, deleteTempFiles = True):
     
 # runs "type", returning the result, cycles and time taken used in a tuple
 def run(type, real, imag, array_size, deleteTempFiles = True, deleteLogFiles = True):
-    print(f"RUnning {type} on array size {array_size}")
+    import os    
     import numpy as np
+    
+    if not os.path.exists("./PythonFiles/tempFiles"):
+        os.mkdir("./PythonFiles/tempFiles")
+        
     assemblyFile = f"./PythonFiles/tempFiles/temp{type}.s"
     logFile = f"./PythonFiles/tempFiles/temp{type}log.txt"
     if type == 'vFFT' or type == 'vIFFT':
@@ -329,17 +332,33 @@ def vIFFT(real, imag, array_size, deleteFiles = True):
 # Returns FFT, IFFT and time taken in performing them on numpy, riscv, and nevctorized risc v
 def computeFFT_IFFTWithBenchmarks(array_size, real = [], imag = [], hardcoded = False):
     if not hardcoded:
-        real = [i * 2 for i in range(array_size)] 
-        imag = [i * 2 for i in range(array_size)]  
+        import random
+        real = [random.uniform(-1000, 1000) for _ in range(array_size)] 
+        imag = [random.uniform(-1000, 1000)  for _ in range(array_size)]  
 
+    print(f"\n\nStarting benchmark for {array_size}")
+    print(f"Performing npFFT for array of size {array_size}")
     npFFTresult, npFFTcycles, npFFTtime = npFFT(real, imag)
+    print("Done.")
+    print(f"Performing npIFFT for array of size {array_size}")
     npIFFTresult, npIFFTcycles,npIFFTtime =  npIFFT(npFFTresult.real, npFFTresult.imag)
+    print("Done.")
+    print(f"Performing FFT for array of size {array_size}")
     FFTresult, FFTcycles, FFTtime= FFT(real, imag, array_size)
+    print("Done.")
+    print(f"Performing IFFT for array of size {array_size}")
     IFFTresults, IFFTcycles, IFFtime =  IFFT(FFTresult.real, FFTresult.imag, array_size)
+    print("Done.")
+    print(f"Performing vFFT for array of size {array_size}")
     vFFTresult, vFFTcycles, vFFTtime = vFFT(real, imag, array_size)
+    print("Done.")
+    print(f"Performing vIFFT for array of size {array_size}")
     vIFFTresult, vIFFTcycles, vIFFTtime =  vIFFT(vFFTresult.real, vFFTresult.imag, array_size)
+    print("Done")
+    
+    print(f"\n\nAll benchmark done for {array_size}\n\n")
 
-    return [npFFTresult,npFFTcycles,npFFTtime, npIFFTresult,npIFFTcycles, npIFFTtime, FFTresult, FFTcycles,FFTtime, IFFTresults, IFFTcycles, IFFtime,vFFTresult, vFFTcycles, vFFTtime,vIFFTresult, vIFFTcycles,vIFFTtime]
+    return [npFFTresult,npFFTcycles,npFFTtime, npIFFTresult,npIFFTcycles, npIFFTtime, FFTresult, FFTcycles,FFTtime, IFFTresults, IFFTcycles, IFFtime,vFFTresult, vFFTcycles, vFFTtime,vIFFTresult, vIFFTcycles,vIFFTtime, real, imag]
 
 # Changes Veer vector size to number of bytes
 def changeVectorSize(size):
@@ -413,7 +432,9 @@ def load_results_from_csv(results_csv, sizes):
     
     results = []
     
+    print(f"Trying to load results from {results_csv}")
     if os.path.exists(results_csv):
+        print(f"File {results_csv} found. Loading Results...")
         with open(results_csv, 'r') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
@@ -439,18 +460,25 @@ def load_results_from_csv(results_csv, sizes):
                     'vIFFTtime': float(row['vIFFTtime']),
                 })
         
-        print("Loaded results from CSV.")
+        print("Results loaded from CSV.")
         loaded_sizes = [result['size'] for result in results]
         sizes_to_load = [size for size in sizes if size not in loaded_sizes]
         if len(sizes_to_load) > 0: 
+            print("Looks like some new array sizes have been added")
+            print(f"Performing tests on {sizes_to_load}")
             results.extend(runTests(sizes_to_load)) 
+            print("Appended new results to CSV")
             save_results_to_csv(results_csv, results)
+            print("Modified CSV saved")
             
     else:
-      # Run tests and save results to CSV
-      results = runTests(sizes)
-      save_results_to_csv(results_csv, results)
-      print("Test results saved to CSV.")
+        print(f"File {results_csv} not found.")
+        print("Rerunnning Tests")
+        # Run tests and save results to CSV
+        results = runTests(sizes)
+        print(f"Saving results to {results_csv}.")
+        save_results_to_csv(results_csv, results)
+        print(f"Results saved to {results_csv}.")
         
     return results
 
@@ -463,6 +491,8 @@ def runTests(sizes,real = [], imag = [], hardcoded = False):
         result = computeFFT_IFFTWithBenchmarks(size, real, imag, hardcoded)
         results.append({
             'size': size,
+            'real': result[-2],
+            'imag' : result[-1],
             'npFFTresult': result[0],
             'npFFTcycles': result[1],
             'npFFTtime': result[2],
@@ -472,9 +502,9 @@ def runTests(sizes,real = [], imag = [], hardcoded = False):
             'FFTresult': result[6],
             'FFTcycles': result[7],
             'FFTtime': result[8],
-            'IFFTresults': result[9],
+            'IFFTresult': result[9],
             'IFFTcycles': result[10],
-            'IFFtime': result[11],
+            'IFFTtime': result[11],
             'vFFTresult': result[12],
             'vFFTcycles': result[13],
             'vFFTtime': result[14],
@@ -486,24 +516,22 @@ def runTests(sizes,real = [], imag = [], hardcoded = False):
     return results
 
 
-
 # TESTING AND MAKING GRAPHS
 import numpy as np
-
-results_csv = 'test_results.csv' # FIle which will have the results
-sizes = [2 ** i for i in range(2, 20)]  # Define the sizes for testing. must be power of 2
-results = load_results_from_csv(results_csv, sizes)
-# Run tests only if the file does not exist or append new sizes
-
-
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
+# RUN FFT/IFFT ON DIFFERENT SIZES AND SAVE THE RESULTS
+results_csv = 'test_results random.csv' # File to save the results to
+sizes = [2 ** i for i in range(4, 15)]  # Define the sizes for testing. must be power of 2
+#results = load_results_from_csv(results_csv, sizes)    # RN I do not save to file as i think it is causing precision issues
+results = runTests(sizes)
+
+
 df = pd.DataFrame(results)
-print(df['FFTtime']/df['vFFTtime'])
-with PdfPages('FFT_IFFT_Analysis_Report.pdf') as pdf:   
-    
+# Make plots and save it to pdf
+with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:   
     
     # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes
     plt.figure(figsize=(12, 6))
@@ -517,12 +545,12 @@ with PdfPages('FFT_IFFT_Analysis_Report.pdf') as pdf:
     pdf.savefig()
     plt.close() 
     
-    # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes
+    # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes with big O
     plt.figure(figsize=(12, 6))
     plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='D')
     plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='x')
     plt.plot(df['size'], pd.DataFrame([(i*i) for i in df['size']]), label='O(n*2)', marker='o')
-    plt.plot(df['size'], pd.DataFrame([3*i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
+    plt.plot(df['size'], pd.DataFrame([i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
     plt.ylabel('VeeR Instruction Count')
     plt.xlabel('Input Size (log)')
     plt.xscale('log')
@@ -544,272 +572,154 @@ with PdfPages('FFT_IFFT_Analysis_Report.pdf') as pdf:
     pdf.savefig()
     plt.close()
     
-    exit()
-
-    for idx, row in df.iterrows():
-        size = row['size']
-        np_fft_result = np.array(row['npFFTresult'])
-        fft_result = np.array(row['FFTresult'])
-        v_fft_result = np.array(row['vFFTresult'])
-
-        # Create a figure for each size
-        plt.figure(figsize=(10, 6))
-
-        # Plot the real part of the results
-        plt.plot(np.real(np_fft_result), label='npFFT Real', color='blue', linestyle='-')
-        plt.plot(np.real(fft_result), label='FFT Real', color='green', linestyle='--')
-        plt.plot(np.real(v_fft_result), label='vFFT Real', color='red', linestyle='-.')
-
-        # Optionally plot the imaginary part (uncomment the following lines if needed)
-        plt.plot(np.imag(np_fft_result), label='npFFT Imaginary', color='blue', linestyle=':')
-        plt.plot(np.imag(fft_result), label='FFT Imaginary', color='green', linestyle=':')
-        plt.plot(np.imag(v_fft_result), label='vFFT Imaginary', color='red', linestyle=':')
-
-        # Set the title and labels
-        plt.title(f'FFT Results Comparison for Size {size}')
-        plt.xlabel('Index')
-        plt.ylabel('Value')
-        plt.legend()
-
-        # Show the plot
-        pdf.savefig()
-        plt.close()
-    
-    for idx, row in df.iterrows():
-        size = row['size']
-        np_fft_result = np.array(row['npFFTresult'])
-        fft_result = np.array(row['FFTresult'])
-        v_fft_result = np.array(row['vFFTresult'])
-
-        # Calculate errors (Mean Squared Error)
-        fft_real_error = np.mean((np.real(fft_result) - np.real(np_fft_result))**2)
-        fft_imag_error = np.mean((np.imag(fft_result) - np.imag(np_fft_result))**2)
-        v_fft_real_error = np.mean((np.real(v_fft_result) - np.real(np_fft_result))**2)
-        v_fft_imag_error = np.mean((np.imag(v_fft_result) - np.imag(np_fft_result))**2)
-
-        # Plot the error for real and imaginary parts
-        plt.figure(figsize=(10, 6))
-
-        plt.bar(['FFT Real Error', 'vFFT Real Error'], [fft_real_error, v_fft_real_error], color=['blue', 'red'], alpha=0.7)
-        plt.bar(['FFT Imag Error', 'vFFT Imag Error'], [fft_imag_error, v_fft_imag_error], color=['blue', 'red'], alpha=0.7, hatch='/')
-
-        # Set the title and labels
-        plt.title(f'FFT Error Comparison for Size {size}')
-        plt.ylabel('Mean Squared Error')
-        plt.xlabel('Error Type')
-        
-        # Show the plot
-        pdf.savefig()
-        plt.close()
-        # Run time difference between different input sizes for np, normal, vectorized
-    def calculate_errors(df):
-        sizes = []
-        fft_mse, fft_ae, fft_max_error = [], [], []
-        vfft_mse, vfft_ae, vfft_max_error = [], [], []
-        
-        for idx, row in df.iterrows():
-            size = row['size']
-            sizes.append(size)
-            
-            # Convert npFFT, FFT, and vFFT results to numpy arrays
-            np_fft_result = np.array(row['npFFTresult'])
-            fft_result = np.array(row['FFTresult'])
-            v_fft_result = np.array(row['vFFTresult'])
-            
-            # Calculate errors for FFT
-            fft_diff = np_fft_result - fft_result
-            fft_mse.append(np.mean(np.abs(fft_diff)**2))  # MSE
-            fft_ae.append(np.mean(np.abs(fft_diff)))      # Absolute Error
-            fft_max_error.append(np.max(np.abs(fft_diff)))  # Max Error
-            
-            # Calculate errors for vFFT
-            vfft_diff = np_fft_result - v_fft_result
-            vfft_mse.append(np.mean(np.abs(vfft_diff)**2))  # MSE
-            vfft_ae.append(np.mean(np.abs(vfft_diff)))      # Absolute Error
-            vfft_max_error.append(np.max(np.abs(vfft_diff)))  # Max Error
-
-        return sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error
-
-    # Function to plot the error metrics
-    def plot_error_metrics(sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error):
-        plt.figure(figsize=(10, 6))
-
-        # Plot MSE for FFT and vFFT
-        plt.plot(sizes, fft_mse, label='FFT MSE', color='blue', linestyle='-')
-        plt.plot(sizes, vfft_mse, label='vFFT MSE', color='red', linestyle='--')
-
-        # Plot Absolute Error for FFT and vFFT
-        plt.plot(sizes, fft_ae, label='FFT Absolute Error', color='green', linestyle='-')
-        plt.plot(sizes, vfft_ae, label='vFFT Absolute Error', color='orange', linestyle='--')
-
-        # Plot Max Error for FFT and vFFT
-        plt.plot(sizes, fft_max_error, label='FFT Max Error', color='purple', linestyle='-')
-        plt.plot(sizes, vfft_max_error, label='vFFT Max Error', color='brown', linestyle='--')
-
-        # Set labels and title
-        plt.xlabel('Size')
-        plt.ylabel('Error')
-        plt.title('Error Comparison for FFT and vFFT vs npFFT')
-        plt.legend()
-        plt.grid(True)
-        pdf.savefig()
-        plt.close()
-
-    # Call functions to calculate errors and plot them
-    sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error = calculate_errors(df)
-    plot_error_metrics(sizes, fft_mse, fft_ae, fft_max_error, vfft_mse, vfft_ae, vfft_max_error)
-    
-    
-    
-    # TRYING NEW ERROR SHOWING
-    plt.figure(figsize=(12, 8))
-
-    sizes = []
-    fft_mse, fft_ae, fft_max_error, fft_sd = [], [], [], []
-    vfft_mse, vfft_ae, vfft_max_error, vfft_sd = [], [], [], []
-
-    # Loop over each row in the dataframe to calculate errors for each size
-    for idx, row in df.iterrows():
-        size = row['size']
-        sizes.append(size)
-        
-        # Convert npFFT, FFT, and vFFT results to numpy arrays
-        np_fft_result = np.array(row['npFFTresult'])
-        fft_result = np.array(row['FFTresult'])
-        v_fft_result = np.array(row['vFFTresult'])
-        
-        # Calculate errors for FFT
-        fft_diff = np_fft_result - fft_result
-        fft_mse.append(np.mean(np.abs(fft_diff)**2))  # Mean Squared Error (MSE)
-        fft_ae.append(np.mean(np.abs(fft_diff)))      # Absolute Error (AE)
-        fft_max_error.append(np.max(np.abs(fft_diff)))  # Max Error (Max)
-        fft_sd.append(np.std(np.abs(fft_diff)))       # Standard Deviation (SD)
-        
-        # Calculate errors for vFFT
-        vfft_diff = np_fft_result - v_fft_result
-        vfft_mse.append(np.mean(np.abs(vfft_diff)**2))  # MSE
-        vfft_ae.append(np.mean(np.abs(vfft_diff)))      # Absolute Error
-        vfft_max_error.append(np.max(np.abs(vfft_diff)))  # Max Error
-        vfft_sd.append(np.std(np.abs(vfft_diff)))       # Standard Deviation (SD)
-
-    # Plotting the errors for FFT
-    plt.plot(sizes, fft_mse, label='FFT MSE', color='blue', linestyle='-')
-    plt.plot(sizes, fft_ae, label='FFT Absolute Error', color='green', linestyle='-')
-    plt.plot(sizes, fft_max_error, label='FFT Max Error', color='purple', linestyle='-')
-    plt.plot(sizes, fft_sd, label='FFT Std Dev', color='cyan', linestyle='-')
-
-    # Plotting the errors for vFFT
-    plt.plot(sizes, vfft_mse, label='vFFT MSE', color='red', linestyle='--')
-    plt.plot(sizes, vfft_ae, label='vFFT Absolute Error', color='orange', linestyle='--')
-    plt.plot(sizes, vfft_max_error, label='vFFT Max Error', color='brown', linestyle='--')
-    plt.plot(sizes, vfft_sd, label='vFFT Std Dev', color='magenta', linestyle='--')
-
-    # Set labels and title
-    plt.xlabel('Size')
-    plt.ylabel('Error')
-    plt.title('Error and Standard Deviation Comparison for FFT and vFFT vs npFFT')
-
-    # Show legend
+    #   Improvement of vFFT over FFT of Different input sizes i.e ratio
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['size'], df['FFTtime']/df['vFFTtime'], label='vFFT Improvement', marker='x')
+    plt.plot(df['size'], df['IFFTtime']/df['vIFFTtime'], label='vIFFT Improvement', marker='o')
+    plt.ylabel('Ratio')
+    plt.xlabel('Input Size (log)')
+    plt.xscale('log')
     plt.legend()
-
-    # Show grid
-    plt.grid(True)
-
-    # Save the figure to a file
+    plt.title("vFFT run time improvement over FFTs")
     pdf.savefig()
     plt.close()
-
-
-
-    # avg_errors = [np.mean(error) for error in errors]
-    # sizes = [result['size'] for result in results]
-
-    # # Average error
-    # plt.figure(figsize=(10, 5))
-    # plt.plot(sizes, avg_errors, marker='o', label='Average Error')
-    # plt.xscale('log')
-    # plt.xlabel('Input Size (log scale)')
-    # plt.ylabel('Average Error')
-    # plt.title('Average Error of vFFT vs npFFT')
-    # plt.legend()
-    # plt.grid()
-    # pdf.savefig()
-    # plt.close()
     
-    # # Maximum error
-    # max_errors = [np.max(error) for error in errors]
-
-    # plt.figure(figsize=(10, 5))
-    # plt.plot(sizes, max_errors, marker='o', color='r', label='Max Error')
-    # plt.xscale('log')
-    # plt.xlabel('Input Size (log scale)')
-    # plt.ylabel('Max Error')
-    # plt.title('Maximum Error of vFFT vs npFFT')
-    # plt.legend()
-    # plt.grid()
-    # pdf.savefig()
-    # plt.close()
+    #   Improvement of vFFT over FFT of Different input sizes i.e ratio
+    plt.figure(figsize=(12, 6))
+    plt.plot(df['size'], df['FFTtime']/df['vFFTtime'], label='vFFT Improvement', marker='x')
+    plt.plot(df['size'], df['IFFTtime']/df['vIFFTtime'], label='vIFFT Improvement', marker='o')
+    plt.ylabel('Ratio')
+    plt.xlabel('Input Size (log)')
+    plt.xscale('log')
+    plt.legend()
+    plt.title("vFFT cpu instructions improvement over FFTs")
+    pdf.savefig()
+    plt.close()
     
-    
-    # # Standard deviation of errors
-    # std_errors = [np.std(error) for error in errors]
+    # Show value difference per size
+    # for idx, row in df.iterrows():
+    #     size = row['size']
+    #     np_fft_result = np.array(row['npFFTresult'])
+    #     fft_result = np.array(row['FFTresult'])
+    #     v_fft_result = np.array(row['vFFTresult'])
 
-    # plt.figure(figsize=(10, 5))
-    # plt.plot(sizes, std_errors, marker='o', color='g', label='Std Error')
-    # plt.xscale('log')
-    # plt.xlabel('Input Size (log scale)')
-    # plt.ylabel('Error Standard Deviation')
-    # plt.title('Error Standard Deviation of vFFT vs npFFT')
-    # plt.legend()
-    # plt.grid()
-    # pdf.savefig()
-    # plt.close()
-    
-    # # Histogram of errors for the largest size
-    # largest_size_index = np.argmax(sizes)
-    # largest_errors = errors[largest_size_index]
+    #     # Create a figure for each size
+    #     plt.figure(figsize=(12, 6))
 
-    # plt.figure(figsize=(10, 5))
-    # plt.hist(largest_errors, bins=30, alpha=0.7, color='purple')
-    # plt.xlabel('Error Magnitude')
-    # plt.ylabel('Frequency')
-    # plt.title(f'Error Histogram for Input Size {sizes[largest_size_index]}')
-    # plt.grid()
-    # pdf.savefig()
-    # plt.close()
+    #     # Plot the abs diff of real part of the results
+    #     # plt.plot(np.abs(np_fft_result - fft_result), label='FFT Diff', color='blue', linestyle='-')
+    #     # plt.plot(np.abs(np_fft_result - v_fft_result), label='vFFT  Diff', color='green', linestyle='--')
+     
 
-
-
-    # Loop through each data type for reports
-    # for data_type, results in results_by_type.items():
-    #     # Report: Difference between NumPy FFT and vFFT
-        
-    #     for result in results:
-    #         plt.figure()
-    #         plt.title(f'Difference between NumPy FFT and vFFT for {data_type} for size {result['size']}')
-    #         plt.plot(result['npFFT'].real - result['vFFT'].real, label='Real Part Diff', color='blue')
-    #         plt.plot(result['npFFT'].imag - result['vFFT'].imag, label='Imag Part Diff', color='red')
-    #         plt.xlabel('Index')
-    #         plt.ylabel('Value')
-    #         plt.legend()
-    #         pdf.savefig()  # saves the current figure into a pdf page
-    #         plt.close()
-
-    # for data_type, results in results_by_type.items():
-    #     # Report: Comparison of cycles used
-    #     plt.figure()
-    #     plt.title(f'CPU Cycles Comparison: FFT and vFFT for {data_type}')
-    #     sizes = [result['size'] for result in results]  # Extract sizes for plotting
-    #     fft_cycles = [result['FFT_cycles'] for result in results]
-    #     vfft_cycles = [result['vFFT_cycles'] for result in results]
-    #     plt.plot(sizes, fft_cycles, label='FFT Cycles', marker='o')
-    #     plt.plot(sizes, vfft_cycles, label='vFFT Cycles', marker='o')
-    #     plt.xlabel('Array Size')
-    #     plt.ylabel('CPU Cycles')
-    #     plt.xscale('log')
+    #     plt.plot(np.abs(np.real(np_fft_result) - np.real(fft_result)), label='FFT Real Diff', color='blue', linestyle='-')
+    #     plt.plot(np.abs(np.real(np_fft_result) - np.real(v_fft_result)), label='vFFT Real Diff', color='green', linestyle='--')
+     
+    # # Set the title and labels
+    #     plt.title(f'vFFT/FFT  REAL diff from npFFT for Size {size}')
+    #     plt.xlabel('Index')
+    #     plt.ylabel('Diff')
     #     plt.legend()
-    #     pdf.savefig()  # saves the current figure into a pdf page
+
+    #     # Show the plot
+    #     pdf.savefig()
     #     plt.close()
+    #     # Create a figure for each size
+    #     plt.figure(figsize=(12, 6))
+        
+    #     # # Optionally plot the dif of imaginary part (uncomment the following lines if needed)
+    #     plt.plot(np.abs(np.imag(np_fft_result) - np.imag(fft_result)), label='FFT Imag Diff', color='red', linestyle='-.')
+    #     plt.plot(np.abs(np.imag(np_fft_result) - np.imag(v_fft_result)), label='vFFT Imag Diff', color='orange', linestyle=':')
+
+    #     # Set the title and labels
+    #     plt.title(f'vFFT/FFT IMAG diff from npFFT for Size {size}')
+    #     plt.xlabel('Index')
+    #     plt.ylabel('Diff')
+    #     plt.legend()
+
+    #     # Show the plot
+    #     pdf.savefig()
+    #     plt.close()
+
+
+def create_spreadsheet(results, file_name):
+    import pandas as pd
+    import numpy as np
+    
+    # Example difference function
+    def diff_func(a, b):
+        return abs(a - b)
+    # Create an Excel writer object
+    with pd.ExcelWriter(file_name, engine='xlsxwriter') as writer:
+        # Loop through each entry in results
+        for entry in results:
+            size = entry['size']
+            
+            data = {
+                'real' : [result for result in entry['real']],
+                'imag' : [result for result in entry['imag']],
+                'npFFT_real': [result.real for result in entry['npFFTresult']],
+                'npFFT_imag': [result.imag for result in entry['npFFTresult']],
+                #'FFT_real': [result.real for result in entry['FFTresult']],
+               # 'FFT_imag': [result.imag for result in entry['FFTresult']],
+                'vFFT_real': [result.real for result in entry['vFFTresult']],
+                'vFFT_imag': [result.imag for result in entry['vFFTresult']],
+               # 'npIFFT_real': [result.real for result in entry['npIFFTresult']],
+               # 'npIFFT_imag': [result.imag for result in entry['npIFFTresult']],
+               # 'IFFT_real': [result.real for result in entry['IFFTresult']],
+                #'IFFT_imag': [result.imag for result in entry['IFFTresult']],
+                'vIFFT_real': [result.real for result in entry['vIFFTresult']],
+                'vIFFT_imag': [result.imag for result in entry['vIFFTresult']],
+            }
+            
+        
+             # Calculate abs differences  between ffts
+          #  data['diff_npFFT_FFT_abs'] = [diff for diff in np.abs(entry['npFFTresult'] - entry['FFTresult'])]
+            data['diff_npFFT_vFFT_abs'] = [diff for diff in np.abs(entry['npFFTresult'] - entry['vFFTresult'])]
+            #data['diff_FFT_vFFT_abs'] = [diff for diff in np.abs(entry['FFTresult'] - entry['vFFTresult'])]
+            data['diff_npIFFT_IFFT_abs'] = [diff for diff in np.abs(entry['npIFFTresult'] - entry['IFFTresult'])]
+           # data['diff_npIFFT_vIFFT_abs'] = [diff for diff in np.abs(entry['npIFFTresult'] - entry['vIFFTresult'])]
+           # data['diff_IFFT_vIFFT_abs'] = [diff for diff in np.abs(entry['IFFTresult'] - entry['vIFFTresult'])]
+            
+       
+            # Add runtime and cycles
+           # data['npFFT_cycles'] = [entry['npFFTcycles']] * len(entry['npFFTresult'])
+          # data['npFFT_time'] = [entry['npFFTtime']] * len(entry['npFFTresult'])
+          #  data['FFT_cycles'] = [entry['FFTcycles']] * len(entry['FFTresult'])
+          #  data['FFT_time'] = [entry['FFTtime']] * len(entry['FFTresult'])
+          #  data['vFFT_cycles'] = [entry['vFFTcycles']] * len(entry['vFFTresult'])
+           # data['vFFT_time'] = [entry['vFFTtime']] * len(entry['vFFTresult'])
+
+            #data['npIFFT_cycles'] = [entry['npIFFTcycles']] * len(entry['npIFFTresult'])
+           # data['npIFFT_time'] = [entry['npIFFTtime']] * len(entry['npIFFTresult'])
+           # data['IFFT_cycles'] = [entry['IFFTcycles']] * len(entry['IFFTresult'])
+           # data['IFFT_time'] = [entry['IFFTtime']] * len(entry['IFFTresult'])
+          #  data['vIFFT_cycles'] = [entry['vIFFTcycles']] * len(entry['vIFFTresult'])
+           # data['vIFFT_time'] = [entry['vIFFTtime']] * len(entry['vIFFTresult'])
+
+             # in the end Calculate differences  between real and imag coutnerpart. optional
+            # data['diff_npFFT_FFT_real'] = [diff_func(entry['npFFTresult'][i].real, entry['FFTresult'][i].real) for i in range(len(entry['npFFTresult']))]
+            # data['diff_npFFT_FFT_imag'] = [diff_func(entry['npFFTresult'][i].imag, entry['FFTresult'][i].imag) for i in range(len(entry['npFFTresult']))]
+            # data['diff_npFFT_vFFT_real'] = [diff_func(entry['npFFTresult'][i].real, entry['vFFTresult'][i].real) for i in range(len(entry['npFFTresult']))]
+            # data['diff_npFFT_vFFT_imag'] = [diff_func(entry['npFFTresult'][i].imag, entry['vFFTresult'][i].imag) for i in range(len(entry['npFFTresult']))]
+            # data['diff_FFT_vFFT_real'] = [diff_func(entry['FFTresult'][i].real, entry['vFFTresult'][i].real) for i in range(len(entry['FFTresult']))]
+            # data['diff_FFT_vFFT_imag'] = [diff_func(entry['FFTresult'][i].imag, entry['vFFTresult'][i].imag) for i in range(len(entry['FFTresult']))]
+            # data['diff_npIFFT_IFFT_real'] = [diff_func(entry['npIFFTresult'][i].real, entry['IFFTresult'][i].real) for i in range(len(entry['npFFTresult']))]
+            # data['diff_npIFFT_IFFT_imag'] = [diff_func(entry['npIFFTresult'][i].imag, entry['IFFTresult'][i].imag) for i in range(len(entry['npFFTresult']))]
+            # data['diff_npIFFT_vIFFT_real'] = [diff_func(entry['npIFFTresult'][i].real, entry['vIFFTresult'][i].real) for i in range(len(entry['npFFTresult']))]
+            # data['diff_npIFFT_vIFFT_imag'] = [diff_func(entry['npIFFTresult'][i].imag, entry['vIFFTresult'][i].imag) for i in range(len(entry['npFFTresult']))]
+            # data['diff_IFFT_vIFFT_real'] = [diff_func(entry['IFFTresult'][i].real, entry['vIFFTresult'][i].real) for i in range(len(entry['FFTresult']))]
+            # data['diff_IFFT_vIFFT_imag'] = [diff_func(entry['IFFTresult'][i].imag, entry['vIFFTresult'][i].imag) for i in range(len(entry['FFTresult']))]
+
+            
+            # Create a DataFrame for the current size
+            df = pd.DataFrame(data)
+            
+            # Write to a new sheet named after the size
+            df.to_excel(writer, sheet_name=f'Size_{size}', index=False)
+
+# Usage
+create_spreadsheet(results, 'onlyvfft_results.xlsx')
+
 
 
 print("Reports and graphs have been saved to 'FFT_IFFT_Analysis_Report.pdf'.")
