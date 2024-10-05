@@ -289,6 +289,7 @@ def run(type, real, imag, array_size, deleteTempFiles = True, deleteLogFiles = T
 # Calculate FFT using numpy, returns the FFT, cycles and the time taken to calculate
 def npFFT(real, imag):
     import time
+    import numpy as np
     start_time = time.time()
     complex_numbers = np.array(real) + 1j * np.array(imag)
     fft = np.fft.fft(complex_numbers)
@@ -489,7 +490,7 @@ def runTests(sizes,real = [], imag = [], hardcoded = False):
 # TESTING AND MAKING GRAPHS
 import numpy as np
 
-results_csv = 'test_resultsv3.csv' # FIle which will have the results
+results_csv = 'test_results.csv' # FIle which will have the results
 sizes = [2 ** i for i in range(2, 20)]  # Define the sizes for testing. must be power of 2
 results = load_results_from_csv(results_csv, sizes)
 # Run tests only if the file does not exist or append new sizes
@@ -500,8 +501,8 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
 df = pd.DataFrame(results)
-
-with PdfPages('FFT_IFFT_Analysis_Reportv6.pdf') as pdf:   
+print(df['FFTtime']/df['vFFTtime'])
+with PdfPages('FFT_IFFT_Analysis_Report.pdf') as pdf:   
     
     
     # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes
