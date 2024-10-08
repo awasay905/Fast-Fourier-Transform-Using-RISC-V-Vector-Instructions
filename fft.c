@@ -4,8 +4,9 @@
 #include <math.h>
 
 #define PI 3.14159265358979323846
-#define TWO_PI 6.28318530718 
-#define TERMS 60
+#define TWO_PI 6.28318530717958647692
+#define HALF_PI 1.57079632679489661923
+#define TERMS 15
 #define MAX 200
 
 int logint(int N) // Calculates the log2 of number
@@ -28,41 +29,41 @@ int reverse(int N, int n) // bit wise reverses the number
   return p;
 }
 
-float mySin(float x, int T) {
-      // Convert x to positive and preserve the sign
+float mySin(float x) {
+    // Convert x to positive and preserve the sign
     int sign = 1;
     if (x < 0) {
         x = -x;
         sign = -1;
     }
-
-    // Reduce x to the range [0, 2π) efficiently
-    x = x - ((int)(x / TWO_PI)) * TWO_PI;
-    float term = x; // The first term is x
-    float sum = x; // Initialize sum of series
-    int alt_sign = -1; // Alternating sign for each term
-
-    for (int i = 3; i <= 2 * T + 1; i += 2) {
-        term = term * (x * x) / ((i - 1) * i); // Calculate the next term in the series
-        sum += alt_sign * term; // Add the term to the sum
-        alt_sign = -alt_sign; // Alternate the sign
+    
+    // Reduce x to the range [0, 2π) more accurately
+    x = x - TWO_PI * (int)(x / TWO_PI);
+    
+    // Further reduce to [0, π/2] for better accuracy
+    if (x > HALF_PI) {
+        x = TWO_PI - x;
+        sign = -sign;
     }
-
+    
+    float x2 = x * x;
+    float term = x;
+    float sum = x;
+    float factorial = 1.0f;
+    
+    for (int i = 1; i <= TERMS; i++) {
+        factorial *= (2*i) * (2*i + 1);
+        term *= -x2;
+        float next_term = term / factorial;
+        if (next_term == 0.0f) break; // Stop if term becomes too small
+        sum += next_term;
+    } 
     return sign * sum;
 }
 
 float myCos(float x) {
-    float term = 1; // The first term is 1
-    float sum = 1; // Initialize sum of series
-    int sign = -1; // Alternating sign for each term
-
-    for (int i = 2; i <= 2 * TERMS; i += 2) {
-        term *= x * x / ((i - 1) * i); // Calculate the next term in the series
-        sum += sign * term; // Add the term to the sum
-        sign = -sign; // Alternate the sign
-    }
-
-    return sum;
+    // Cosine is just sine shifted by π/2
+    return mySin(x + HALF_PI);
 }
 
 
