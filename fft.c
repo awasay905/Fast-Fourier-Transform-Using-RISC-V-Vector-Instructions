@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define PI 3.14159265358979323846
-#define TERMS 10 
+#define TWO_PI 6.28318530718 
+#define TERMS 60
 #define MAX 200
 
 int logint(int N) // Calculates the log2 of number
@@ -27,17 +29,26 @@ int reverse(int N, int n) // bit wise reverses the number
 }
 
 float mySin(float x) {
+      // Convert x to positive and preserve the sign
+    int sign = 1;
+    if (x < 0) {
+        x = -x;
+        sign = -1;
+    }
+
+    // Reduce x to the range [0, 2π) efficiently
+    x = x - ((int)(x / TWO_PI)) * TWO_PI;
     float term = x; // The first term is x
     float sum = x; // Initialize sum of series
-    int sign = -1; // Alternating sign for each term
+    int alt_sign = -1; // Alternating sign for each term
 
     for (int i = 3; i <= 2 * TERMS + 1; i += 2) {
         term *= x * x / ((i - 1) * i); // Calculate the next term in the series
-        sum += sign * term; // Add the term to the sum
-        sign = -sign; // Alternate the sign
+        sum += alt_sign * term; // Add the term to the sum
+        alt_sign = -alt_sign; // Alternate the sign
     }
 
-    return sum;
+    return sign * sum;
 }
 
 float myCos(float x) {
