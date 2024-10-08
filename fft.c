@@ -28,7 +28,7 @@ int reverse(int N, int n) // bit wise reverses the number
   return p;
 }
 
-float mySin(float x) {
+float mySin(float x, int T) {
       // Convert x to positive and preserve the sign
     int sign = 1;
     if (x < 0) {
@@ -42,8 +42,8 @@ float mySin(float x) {
     float sum = x; // Initialize sum of series
     int alt_sign = -1; // Alternating sign for each term
 
-    for (int i = 3; i <= 2 * TERMS + 1; i += 2) {
-        term *= x * x / ((i - 1) * i); // Calculate the next term in the series
+    for (int i = 3; i <= 2 * T + 1; i += 2) {
+        term = term * (x * x) / ((i - 1) * i); // Calculate the next term in the series
         sum += alt_sign * term; // Add the term to the sum
         alt_sign = -alt_sign; // Alternate the sign
     }
