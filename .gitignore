@@ -8,3 +8,6 @@ VeerFiles/programNV.hex
 VeerFiles/logNV.txt
 PythonFiles/tempFiles/
 /test_results.csv
+.vscode/settings.json
+.vscode/tasks.json
+fft

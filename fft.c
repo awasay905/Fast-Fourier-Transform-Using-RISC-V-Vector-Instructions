@@ -30,20 +30,11 @@ int reverse(int N, int n) // bit wise reverses the number
 }
 
 float mySin(float x) {
-    // Convert x to positive and preserve the sign
-    int sign = 1;
-    if (x < 0) {
-        x = -x;
-        sign = -1;
-    }
-    
-    // Reduce x to the range [0, 2π) more accurately
-    x = x - TWO_PI * (int)(x / TWO_PI);
-    
-    // Further reduce to [0, π/2] for better accuracy
-    if (x > HALF_PI) {
-        x = TWO_PI - x;
-        sign = -sign;
+   // Reduce to [0, π/2] for better accuracy
+    if (x < -HALF_PI) {
+        x = -PI - x;
+    } else if (x > HALF_PI) {
+        x = PI - x;
     }
     
     float x2 = x * x;
@@ -55,18 +46,45 @@ float mySin(float x) {
         factorial *= (2*i) * (2*i + 1);
         term *= -x2;
         float next_term = term / factorial;
-        if (next_term == 0.0f) break; // Stop if term becomes too small
         sum += next_term;
     } 
-    return sign * sum;
+    
+    return sum;
 }
 
 float myCos(float x) {
     // Cosine is just sine shifted by π/2
-    return mySin(x + HALF_PI);
+    if (x < 0) return mySin(x + HALF_PI);
+    return mySin(-x + HALF_PI);
 }
 
+float mySinOld(float x) {
+    float term = x; // The first term is x
+    float sum = x; // Initialize sum of series
+    int sign = -1; // Alternating sign for each term
 
+    for (int i = 3; i <= 2 * TERMS + 1; i += 2) {
+        term *= x * x / ((i - 1) * i); // Calculate the next term in the series
+        sum += sign * term; // Add the term to the sum
+        sign = -sign; // Alternate the sign
+    }
+
+    return sum;
+}
+
+float myCosOld(float x) {
+    float term = 1; // The first term is 1
+    float sum = 1; // Initialize sum of series
+    int sign = -1; // Alternating sign for each term
+
+    for (int i = 2; i <= 2 * TERMS; i += 2) {
+        term *= x * x / ((i - 1) * i); // Calculate the next term in the series
+        sum += sign * term; // Add the term to the sum
+        sign = -sign; // Alternate the sign
+    }
+
+    return sum;
+}
 
 // now i have to change complex to 2 array of float
 void ordina(float* real, float* imag, int N) // using the reverse order in the array
@@ -140,6 +158,51 @@ void IFFT(float* real, float* imag, int N, float d)
     real[i] /= N; // multiplying by step
     imag[i] /= N;
   }
+}
+
+void testSineCosine(int N) {
+    float max_error_new_sin = 0.0f, max_error_old_sin = 0.0f;
+    float max_error_new_cos = 0.0f, max_error_old_cos = 0.0f;
+
+    // Loop to test each i in the range [0, N/2)
+    for (int i = 0; i < N / 2; i++) {
+        float mulValue = -1.0f * TWO_PI * i / N;
+
+        // Get values from your implementations
+        float new_cos = myCos(mulValue);
+        float new_sin = mySin(mulValue);
+        float old_cos = myCosOld(mulValue);
+        float old_sin = mySinOld(mulValue);
+
+        // Get values from C library's cos and sin
+        float c_cos = cosf(mulValue);
+        float c_sin = sinf(mulValue);
+
+        // Calculate errors for both sine and cosine
+        float error_new_sin = fabsf(new_sin - c_sin);
+        float error_old_sin = fabsf(old_sin - c_sin);
+        float error_new_cos = fabsf(new_cos - c_cos);
+        float error_old_cos = fabsf(old_cos - c_cos);
+
+
+        // Update max errors
+        if (error_new_sin > max_error_new_sin) max_error_new_sin = error_new_sin;
+        if (error_old_sin > max_error_old_sin) max_error_old_sin = error_old_sin;
+        if (error_new_cos > max_error_new_cos) max_error_new_cos = error_new_cos;
+        if (error_old_cos > max_error_old_cos) max_error_old_cos = error_old_cos;
+    }
+
+    // Print the results
+    printf("Results for N = %d:\n", N);
+    printf("  Max Error (New Sin): %1.18f\n", max_error_new_sin);
+    printf("  Max Error (Old Sin): %1.18f\n", max_error_old_sin);
+    printf("  Max Error (New Cos): %1.18f\n", max_error_new_cos);
+    printf("  Max Error (Old Cos): %1.18f\n", max_error_old_cos);
+
+    // Print the differences between new and old implementations
+    printf("  Max Error Difference (New vs Old Sin): %1.18f\n", fabsf(max_error_new_sin - max_error_old_sin));
+    printf("  Max Error Difference (New vs Old Cos): %1.18f\n", fabsf(max_error_new_cos - max_error_old_cos));
+    printf("\n");
 }
 
 int main()
