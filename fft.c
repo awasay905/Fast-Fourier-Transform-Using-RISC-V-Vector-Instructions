@@ -54,8 +54,7 @@ float mySin(float x) {
 
 float myCos(float x) {
     // Cosine is just sine shifted by π/2
-    if (x < 0) return mySin(x + HALF_PI);
-    return mySin(-x + HALF_PI);
+    return mySin(x + HALF_PI);
 }
 
 float mySinOld(float x) {
@@ -207,17 +206,14 @@ void testSineCosine(int N) {
 
 int main()
 {
+  printf("%f\n\n", PI/2);
   int n = 8; // array size
     float d = 1;  // step size = 1
     float real[MAX] = {1, 2, 3, 4, 5, 6, 7, 8};
     float imag[MAX] = {0,0,0,0,1,1,1,1};
-
-printf("Original Value: \n");
- for (int j = 0; j < n; j++)
-    printf("%f + %fi\n", real[j], imag[j]);
   
   FFT(real, imag, n, d);
-  printf("After FFT Value: \n");
+  //printf("After FFT Value: \n");
   // Now the matrix has the FFT
   for (int j = 0; j < n; j++)
     printf("%f + %fi\n", real[j], imag[j]);

@@ -85,131 +85,121 @@ reverse:    # takes input N(a0) and n(a1). reverse the number in binray
     jr ra
     
 mySin:      # takes input x = fa0 and returns sin in fa0
-    addi sp, sp, -52
+    addi sp, sp, -40
     fsw ft0, 0(sp)
     fsw ft1, 4(sp)
     fsw ft2, 8(sp)
     fsw ft3, 12(sp)
     fsw ft4, 16(sp)
-    fsw ft5, 20(sp)
-    fsw fa1, 24(sp)
-    sw t0, 28(sp)
-    sw t1, 32(sp)
-    sw t2, 36(sp)
-    sw t3, 40(sp)
-    sw t4, 44(sp)
-    sw s0, 48(sp)
+    sw t0, 20(sp)
+    sw t1, 24(sp)
+    sw t2, 28(sp)
+    sw t3, 32(sp)
+    sw s0, 36(sp)
+
+    # Range Reduction to [0, pi/2] for accuracy
+
+    # Load constants
+    la t0, NEG_HALF_PI
+    flw ft0, 0(t0) # ft0 = -halfPI
+
+    # Compare if x (fa0) < -halfpi (ft0)
+    flt.s t0, fa0, ft0 # t0 = fa0 < ft0
+    bnez t0 , lessThanhalfPI 
     
-    fcvt.s.w ft0, zero  # make ft0=0
-    fadd.s ft1, ft0, fa0  # ft1 = term = x
-    fadd.s fa1, ft0, fa0  # fa1 = sum = x
-    addi t0, zero, -1  # t0 = sign = -1
+    # Compare x (fa0) > halfpi (ft0)
+    la t0, HALF_PI
+    flw ft0, 0(t0) # ft0 = halfPI
+    fle.s t0, fa0, ft0 # checks if x <= halfpi, reverse condition
+    beqz t0, moreThanhalfPI # if false, go to if blok
+    j doneRangeReduction # ff true, we will skip 
+
+
+    lessThanhalfPI:         # If block for X < -Half_PI
+    la t0, NEG_PI
+    flw ft1, 0(t0)  # ft1 = -PI
+    fsub.s fa0, ft1, fa0 # ft1 = -PI -x
+    j doneRangeReduction
+
+    moreThanhalfPI:         # If block for x > Half PI
+    la t0, PI
+    flw ft1, 0(t0)      # ft1 = PI
+    fsub.s fa0, ft1, fa0    # x = PI - x
+    j doneRangeReduction
+
+    doneRangeReduction:
     
-    addi s0, zero, 21
-    addi t1, zero, 3 # i = 3
+    fmul.s ft0, fa0, fa0 # ft0 = x2 = x*x
+    fmv.s ft1, fa0  # ft1 = term = x
+    fmv.s ft2, fa0  # ft2 = sum = x
+    la t0, ONE
+    flw ft3, 0(t0) # ft3 = factorail = 1.0
+    
+    la t0, TERMS
+    lw s0, 0(t0)   # s0 = TERMS for taylors
+    li t1, 1 # t1 = i = 1
     sinfor:
     bgt t1, s0, sinforend
     
-    addi t3, t1, -1  # i - 1
-    mul t3, t3, t1   # (i-1)*i
-    fcvt.s.w ft4, t3 # convert aboove to float
-    fmul.s ft5, fa0, fa0
-    fdiv.s ft5, ft5, ft4
-    fmul.s ft1, ft1, ft5
-    fcvt.s.w ft2, t0 # convert sign to float
-    fmul.s ft3,ft2, ft1 # sign * term
-    fadd.s fa1, fa1, ft3
-    
-    addi t2, zero, -1
-    mul t0, t0, t2  # sign = -1 * sign
-    addi t1, t1, 2 # i += 2
+    #START HERE
+    #factorial =factorial * (2*i) * (2*i + 1);
+    #Multipli i by 2
+    li t0, 2 # t0 = 2
+    mul t2, t0, t1 # t2 = 2*i
+    li t0, 1 # t0 = 1
+    add t3, t2, t0 # t3 = (2*i) + 1
+    mul t2, t2,  t3 # t2 = (2*i) * (2*i + 1)
+    # now convert to float
+    fcvt.s.w ft4, t2    # now ft4 =  (2*i) * (2*i + 1). t2, t3 free to use
+    fmul.s ft3, ft3, ft4 # facortila done, ft4  free
+
+    # term =term * -x2; //negative x2
+    ###fneg.s ft4, ft0 # ft4 = -x2
+    fmul.s ft1,  ft1, ft0 # term = term * (-x2)
+    fneg.s ft1, ft1
+
+    # float next_term = term / factorial; ft4 is free to use dont forget
+    fdiv.s ft4, ft1, ft3
+
+    # sum =sum +  next_term;
+    fadd.s ft2, ft2, ft4
+   
+    # LOop stuff
+    addi t1, t1, 1 # i ++
     j sinfor
     sinforend:
     
-    fadd.s fa0, fa1, ft0
-    
-    
+    fmv.s fa0, ft2 # return sum(ft2)
+
     flw ft0, 0(sp)
     flw ft1, 4(sp)
     flw ft2, 8(sp)
     flw ft3, 12(sp)
     flw ft4, 16(sp)
-    flw ft5, 20(sp)
-    flw fa1, 24(sp)
-    lw t0, 28(sp)
-    lw t1, 32(sp)
-    lw t2, 36(sp)
-    lw t3, 40(sp)
-    lw t4, 44(sp)
-    lw s0, 48(sp)
-    addi sp, sp, 52
+    lw t0, 20(sp)
+    lw t1, 24(sp)
+    lw t2, 28(sp)
+    lw t3, 32(sp)
+    lw s0, 36(sp)
+    addi sp, sp, 40
     jr ra
 
 myCos:
-    addi sp, sp, -60
+    addi sp, sp, -12
     fsw ft0, 0(sp)
-    fsw ft1, 4(sp)
-    fsw ft2, 8(sp)
-    fsw ft3, 12(sp)
-    fsw ft4, 16(sp)
-    fsw ft5, 20(sp)
-    fsw fa1, 24(sp)
-    sw t0, 28(sp)
-    sw t1, 32(sp)
-    sw t2, 36(sp)
-    sw t3, 40(sp)
-    sw t4, 44(sp)
-    sw t5, 48(sp)
-    sw t6, 52(sp)
-    sw s0, 56(sp)
+    sw t0, 4(sp)
+    sw ra, 8(sp) # since we will be calling mySin
     
-    
-    fcvt.s.w ft0, zero  # make ft0=0
-    addi t6, zero, 1
-    fcvt.s.w ft6, t6  # ft6 is 1 in float
-    fadd.s ft1, ft0, ft6  # ft1 = term = 1
-    fadd.s fa1, ft0, ft6  # fa1 = sum = 1
-    addi t0, zero, -1  # t0 = sign = -1
-    
-    addi s0, zero, 20
-    addi t1, zero, 2 # i = 2
-    cosfor:
-    bgt t1, s0, cosforend
-    
-    addi t3, t1, -1  # i - 1
-    mul t3, t3, t1   # (i-1)*i
-    fcvt.s.w ft4, t3 # convert aboove to float
-    fmul.s ft5, fa0, fa0
-    fdiv.s ft5, ft5, ft4
-    fmul.s ft1, ft1, ft5
-    fcvt.s.w ft2, t0 # convert sign to float
-    fmul.s ft3,ft2, ft1 # sign * term
-    fadd.s fa1, fa1, ft3
-    
-    addi t2, zero, -1
-    mul t0, t0, t2  # sign = -1 * sign
-    addi t1, t1, 2 # i += 2
-    j cosfor
-    cosforend:
-    
-    fadd.s fa0, fa1, ft0
+    la t0, HALF_PI
+    flw ft0, 0(t0) # ft0 = halfPI
+    fadd.s fa0, fa0, ft0  # x = x + HALF_PI
+
+    call mySin
     
     flw ft0, 0(sp)
-    flw ft1, 4(sp)
-    flw ft2, 8(sp)
-    flw ft3, 12(sp)
-    flw ft4, 16(sp)
-    flw ft5, 20(sp)
-    flw fa1, 24(sp)
-    lw t0, 28(sp)
-    lw t1, 32(sp)
-    lw t2, 36(sp)
-    lw t3, 40(sp)
-    lw t4, 44(sp)
-    lw t5, 48(sp)
-    lw t6, 52(sp)
-    lw s0, 56(sp)
-    addi sp, sp, 60
+    lw t0, 4(sp)
+    lw ra, 8(sp)
+    addi sp, sp, 12
     jr ra
 
 ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
@@ -380,6 +370,7 @@ transform:
     addi a6, a6, 1  # i++
     j sincosfor
     sincosforend:
+    
     ###########################
     
     addi s2, zero, 1  # s2 = n = 1
@@ -647,12 +638,12 @@ _finish:
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
 
-    imag: .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+    imag: .float 0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
           .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
           
-    .set dataSize, 128          # THIS IS N
+    .set dataSize, 8          # THIS IS N
 
     # DO NOT CHANGE ANYTHING AFTER THIS LINE
 
@@ -681,4 +672,11 @@ _finish:
         .endr
 
     PI: .float 3.14159265358979323846
+    NEG_PI: .float -3.14159265358979323846
+    TWO_PI: .float 6.28318530717958647692
+    NEG_TWO_PI: .float -6.28318530717958647692
+    HALF_PI: .float 1.57079632679489661923
+    NEG_HALF_PI: .float -1.57079632679489661923
+    ONE: .float 1
+    TERMS: .word 15
 
