@@ -3,9 +3,12 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define PI 3.14159265358979323846
-#define TWO_PI 6.28318530717958647692
-#define HALF_PI 1.57079632679489661923
+#define PI 3.14159265358979323846f
+#define NEG_PI (-PI)
+#define HALF_PI (PI / 2.0f)
+#define NEG_HALF_PI (-HALF_PI)
+#define TWO_PI (PI * 2.0f)
+#define NEG_TWO_PI (-TWO_PI)
 #define TERMS 15
 #define MAX 200
 
@@ -53,8 +56,28 @@ float mySin(float x) {
 }
 
 float myCos(float x) {
-    // Cosine is just sine shifted by π/2
-    return mySin(x + HALF_PI);
+  int sign = 1;
+    // Reduce to [0, π/2] for better accuracy
+    if (x < NEG_HALF_PI) {
+        x = -PI - x;
+        sign = -1;
+    } else if (x > HALF_PI) {
+        x = PI - x;
+        sign = -1;
+    }
+    float x2 = x * x;
+    float term = 1.0f;  // First term is 1 for cosine
+    float sum = 1.0f;   // Sum starts at 1 for cosine
+    float factorial = 1.0f;
+    
+    for (int i = 1; i <= TERMS; i++) {
+        factorial *= (2*i - 1) * (2*i);
+        term *= -x2;
+        float next_term = term / factorial;
+        sum += next_term;
+    } 
+    
+    return sign*sum;
 }
 
 float mySinOld(float x) {
@@ -206,7 +229,6 @@ void testSineCosine(int N) {
 
 int main()
 {
-  printf("%f\n\n", PI/2);
   int n = 8; // array size
     float d = 1;  // step size = 1
     float real[MAX] = {1, 2, 3, 4, 5, 6, 7, 8};

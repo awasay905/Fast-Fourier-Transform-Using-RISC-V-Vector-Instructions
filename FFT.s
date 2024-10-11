@@ -185,22 +185,111 @@ mySin:      # takes input x = fa0 and returns sin in fa0
     jr ra
 
 myCos:
-    addi sp, sp, -12
+    addi sp, sp, -44
     fsw ft0, 0(sp)
-    sw t0, 4(sp)
-    sw ra, 8(sp) # since we will be calling mySin
+    fsw ft1, 4(sp)
+    fsw ft2, 8(sp)
+    fsw ft3, 12(sp)
+    fsw ft4, 16(sp)
+    sw t0, 20(sp)
+    sw t1, 24(sp)
+    sw t2, 28(sp)
+    sw t3, 32(sp)
+    sw s0, 36(sp)
+    sw t4, 40(sp) # for sign
+
+    # Range Reduction to [0, pi/2] for accuracy
+    li t4, 1 # t4 = 1 = sign
+    # Load constants
+    la t0, NEG_HALF_PI
+    flw ft0, 0(t0) # ft0 = neg_halfPI
+
+    # Compare if x (fa0) < -halfpi (ft0)
+    flt.s t0, fa0, ft0 # t0 = fa0 < ft0
+    bnez t0 , lessThanneghalfPIcos 
     
+    # Compare x (fa0) > halfpi (ft0)
     la t0, HALF_PI
     flw ft0, 0(t0) # ft0 = halfPI
-    fadd.s fa0, fa0, ft0  # x = x + HALF_PI
+    fle.s t0, fa0, ft0 # checks if x <= halfpi, reverse condition
+    beqz t0, moreThanhalfPIcos # if false, go to if blok
+    j doneRangeReductioncos # ff true, we will skip 
 
-    call mySin
+
+    lessThanneghalfPIcos:         # If block for X < -Half_PI
+    la t0, NEG_PI
+    flw ft1, 0(t0)  # ft1 = -PI
+    fsub.s fa0, ft1, fa0 # ft1 = -PI -x
+    li t4, -1 # sign = -1
+    j doneRangeReductioncos
+
+    moreThanhalfPIcos:         # If block for x > Half PI
+    la t0, PI
+    flw ft1, 0(t0)      # ft1 = PI
+    fsub.s fa0, ft1, fa0    # x = PI - x
+    li t4, -1 # sign = -1
+    j doneRangeReductioncos
+
+    doneRangeReductioncos:
     
+    fmul.s ft0, fa0, fa0 # ft0 = x2 = x*x
+    la t0, ONE
+    flw ft1, 0(t0)  # ft1 = term = 1
+    fmv.s ft2, ft1 # ft2 = sum = 1
+    fmv.s ft3, ft1 # ft3 =  faotiraln = 1.0
+    
+    la t0, TERMS
+    lw s0, 0(t0)   # s0 = TERMS for taylors
+    li t1, 1 # t1 = i = 1
+    cosfor:
+    bgt t1, s0, cosforend
+    
+    #START HERE
+    #factorial =factorial * (2*i) * (2*i - 1);
+    #Multipli i by 2
+    li t0, 2 # t0 = 2
+    mul t2, t0, t1 # t2 = 2*i
+    li t0, 1 # t0 = 1
+    sub t3, t2, t0 # t3 = (2*i) - 1
+    mul t2, t2,  t3 # t2 = (2*i) * (2*i - 1)
+    # now convert to float
+    fcvt.s.w ft4, t2    # now ft4 =  (2*i) * (2*i - 1). t2, t3 free to use
+    fmul.s ft3, ft3, ft4 # facortila done, ft4  free
+
+    # term =term * -x2; //negative x2
+    ###fneg.s ft4, ft0 # ft4 = -x2
+    fmul.s ft1,  ft1, ft0 # term = term * (-x2)
+    fneg.s ft1, ft1
+
+    # float next_term = term / factorial; ft4 is free to use dont forget
+    fdiv.s ft4, ft1, ft3
+
+    # sum =sum +  next_term;
+    fadd.s ft2, ft2, ft4
+   
+    # LOop stuff
+    addi t1, t1, 1 # i ++
+    j cosfor
+    cosforend:
+
+    fcvt.s.w ft4, t4 # convert sign to float
+    fmul.s ft2, ft2, ft4 # mul sum by sign
+    fmv.s fa0, ft2 # return sum(ft2)
+
     flw ft0, 0(sp)
-    lw t0, 4(sp)
-    lw ra, 8(sp)
-    addi sp, sp, 12
+    flw ft1, 4(sp)
+    flw ft2, 8(sp)
+    flw ft3, 12(sp)
+    flw ft4, 16(sp)
+    lw t0, 20(sp)
+    lw t1, 24(sp)
+    lw t2, 28(sp)
+    lw t3, 32(sp)
+    lw s0, 36(sp)
+    lw t4, 40(sp)
+    addi sp, sp, 44
     jr ra
+
 
 ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     addi sp, sp, -44
