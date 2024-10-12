@@ -59,7 +59,7 @@ float myCos(float x) {
   int sign = 1;
     // Reduce to [0, π/2] for better accuracy
     if (x < NEG_HALF_PI) {
-        x = -PI - x;
+        x = -PI - x;  // 
         sign = -1;
     } else if (x > HALF_PI) {
         x = PI - x;

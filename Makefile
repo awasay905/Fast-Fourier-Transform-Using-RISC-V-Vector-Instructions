@@ -33,3 +33,18 @@ executeNV:
 	whisper -x ./VeerFiles/programNV.hex -s 0x80000000 --tohost 0xd0580000 -f ./VeerFiles/log.txt --configfile ./VeerFiles/whisper.json
 
 
+
+all2: compile2 execute2
+
+
+clean2: 
+	rm -f ./VeerFiles/log.txt ./VeerFiles/program.hex ./VeerFiles/TEST.dis ./VeerFiles/TEST.exe
+	
+compile2:
+	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o ./VeerFiles/TEST2.exe vectorizedFFT2.s -nostartfiles -lm
+	$(GCC_PREFIX)-objcopy -O verilog ./VeerFiles/TEST2.exe ./VeerFiles/program2.hex
+	$(GCC_PREFIX)-objdump -S ./VeerFiles/TEST2.exe > ./VeerFiles/TEST2.dis
+	
+	
+execute2:
+	whisper -x ./VeerFiles/program2.hex -s 0x80000000 --tohost 0xd0580000 -f ./VeerFiles/log.txt --configfile ./VeerFiles/whisper.json
