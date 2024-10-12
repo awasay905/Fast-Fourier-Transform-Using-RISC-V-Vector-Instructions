@@ -4,24 +4,20 @@
 .global _start
 _start:
 
-main:
-    la a0, real                     # a0 holds address of array real[]
-    la a1, imag                     # a1 holds address of array imag[]
-    la a2, size                     # use a2 to load size of arrays real/img
-    lw a2, 0(a2)                    # a2 holds the size of arrays real/imag
-    la a3, step                     # use a3 to load step for FFT/IFFT
-    flw fa3, 0(a3)                  # 3 holds the step for FFT/IFFT
+main:                               # Main Function to Call FFT/IFFT
+    la a0, real                     # a0 points to real[]
+    la a1, imag                     # a1 points to imag[]
+    la a2, size 
+    lw a2, 0(a2)                    # a2 has size of real/imag arrays  
     
     call FFT                        # Apply FFT on the arrays
     call IFFT                       # Apply IFFT on the arrays
     
-	call print                      # Writes down value of arrays to regsiter for helping in log
+	call print                      # Writes arrays values to register for logging
     j _finish                       # End program
 
-logint:     # takes input N (a0), returns its log base 2 in a0
-    addi sp, sp, -4
-    sw t0, 0(sp)
-    
+
+logint:                             # Returns log(N) base 2 where N=a0
     add t0, a0, zero                # k = N
     add a0, zero, zero              # i = 0
 
@@ -33,113 +29,85 @@ logint:     # takes input N (a0), returns its log base 2 in a0
     logloopend:
 
     addi a0, a0, -1  
-    lw t0, 0(sp)
-    addi sp, sp, 4
     jr ra
+ 
     
-    
-reverse:    # takes input N(a0) and n(a1). reverse the number in binray
-    addi sp, sp, -28
+reverse:                            # Reverse the binary digits of the number. Takes input N (in a0) and n (in a1).
+    addi sp, sp, -4
     sw ra, 0(sp)
-    sw s0, 4(sp)
-    sw s1, 8(sp)
-    sw s2, 12(sp)
-    sw s3, 16(sp)
-    sw s4, 20(sp)
-    sw s5, 24(sp)
     
-    call logint                     # now a0 have log2(N)
-    addi s0, zero, 1                # j = 1
-    add s1, zero, zero              # p = 0
+    call logint                     # Now a0 = log2(N)
+
+    lw ra, 0(sp)
+    addi sp, sp, 4
+
+    addi t0, zero, 1                # j = 1
+    add t1, zero, zero              # p = 0
     
     forloopreverse:
-    bgt s0, a0, forloopreverseend
+    bgt t0, a0, forloopreverseend
     
-    sub s2, a0, s0
-    addi s3, zero, 1
-    sll s3, s3, s2
-    and s3, a1, s3
-    beq s3, zero, elses3
+    sub t2, a0, t0
+    addi t3, zero, 1
+    sll t3, t3, t2
+    and t3, a1, t3
+    beq t3, zero, elses3
     ifs3:
-    addi s4, s0, -1
-    addi s5, zero, 1
-    sll s5, s5, s4
-    or s1, s1, s5
+    addi t4, t0, -1
+    addi t5, zero, 1
+    sll t5, t5, t4
+    or t1, t1, t5
     elses3:
     
-    addi s0, s0, 1
+    addi t0, t0, 1
     j forloopreverse
     
     forloopreverseend:
-    add a0, s1, zero                # return p
+    add a0, t1, zero                # return p
     
-    
-    lw ra, 0(sp)
-    lw s0, 4(sp)
-    lw s1, 8(sp)
-    lw s2, 12(sp)
-    lw s3, 16(sp)
-    lw s4, 20(sp)
-    lw s5, 24(sp)
-    addi sp, sp, 28
     jr ra
     
-mySin:      # takes input x = fa0 and returns sin in fa0
-    addi sp, sp, -40
-    fsw ft0, 0(sp)
-    fsw ft1, 4(sp)
-    fsw ft2, 8(sp)
-    fsw ft3, 12(sp)
-    fsw ft4, 16(sp)
-    sw t0, 20(sp)
-    sw t1, 24(sp)
-    sw t2, 28(sp)
-    sw t3, 32(sp)
-    sw s0, 36(sp)
 
+mySin:                              # Returns sin(x) where x=fa0
     # Range Reduction to [0, pi/2] for accuracy
 
-    # Load constants
-    la t0, NEG_HALF_PI
-    flw ft0, 0(t0) # ft0 = -halfPI
-
-    # Compare if x (fa0) < -halfpi (ft0)
-    flt.s t0, fa0, ft0 # t0 = fa0 < ft0
-    bnez t0 , lessThanhalfPI 
+    # Compare if x(fa0) < NEG_HALF_PI(ft0)
+    la t0, NEG_HALF_PI              # Load constants
+    flw ft0, 0(t0)                  # ft0 = NEG_HALF_PI
+    flt.s t0, fa0, ft0              # t0 = fa0 < ft0
+    bnez t0 , lessThanhalfPI        # Result is 1 if true (not equal to zero)
     
-    # Compare x (fa0) > halfpi (ft0)
-    la t0, HALF_PI
-    flw ft0, 0(t0) # ft0 = halfPI
-    fle.s t0, fa0, ft0 # checks if x <= halfpi, reverse condition
-    beqz t0, moreThanhalfPI # if false, go to if blok
-    j doneRangeReduction # ff true, we will skip 
+    # Compare if x(fa0) > HALF_PI(ft0)
+    la t0, HALF_PI                  # Load constants
+    flw ft0, 0(t0)                  # ft0 = NEG_HALF_PI
+    fle.s t0, fa0, ft0              #  checking x <= halfpi, reverse condition
+    beqz t0, moreThanhalfPI         # if false, go to if blok
+    j doneRangeReduction            # ff true, we will skip 
 
-
-    lessThanhalfPI:         # If block for X < -Half_PI
+    lessThanhalfPI:                 # if block for x < NEG_HALF_PI
     la t0, NEG_PI
-    flw ft1, 0(t0)  # ft1 = -PI
-    fsub.s fa0, ft1, fa0 # ft1 = -PI -x
+    flw ft1, 0(t0)                  # ft1 = NEG_PI
+    fsub.s fa0, ft1, fa0            # fa0 = -PI -x
     j doneRangeReduction
 
-    moreThanhalfPI:         # If block for x > Half PI
+    moreThanhalfPI:                 # if block for x > HALF_PI
     la t0, PI
-    flw ft1, 0(t0)      # ft1 = PI
-    fsub.s fa0, ft1, fa0    # x = PI - x
+    flw ft1, 0(t0)                  # ft1 = PI
+    fsub.s fa0, ft1, fa0            # fa0 = PI - x
     j doneRangeReduction
 
     doneRangeReduction:
-    
-    fmul.s ft0, fa0, fa0 # ft0 = x2 = x*x
-    fmv.s ft1, fa0  # ft1 = term = x
-    fmv.s ft2, fa0  # ft2 = sum = x
+    fmul.s ft0, fa0, fa0            # ft0 = x2 = x*x
+    fmv.s ft1, fa0                  # ft1 = term = x
+    fmv.s ft2, fa0                  # ft2 = sum = x
     la t0, ONE
-    flw ft3, 0(t0) # ft3 = factorail = 1.0
+    flw ft3, 0(t0)                  # ft3 = factorail = 1.0
     
     la t0, TERMS
-    lw s0, 0(t0)   # s0 = TERMS for taylors
-    li t1, 1 # t1 = i = 1
+    lw t4, 0(t0)                    # t4 = TERMS for taylors
+    li t1, 1                        # t1 = i = 1
     sinfor:
-    bgt t1, s0, sinforend
+    bgt t1, t4, sinforend
     
     #START HERE
     #factorial =factorial * (2*i) * (2*i + 1);
@@ -171,33 +139,10 @@ mySin:      # takes input x = fa0 and returns sin in fa0
     
     fmv.s fa0, ft2 # return sum(ft2)
 
-    flw ft0, 0(sp)
-    flw ft1, 4(sp)
-    flw ft2, 8(sp)
-    flw ft3, 12(sp)
-    flw ft4, 16(sp)
-    lw t0, 20(sp)
-    lw t1, 24(sp)
-    lw t2, 28(sp)
-    lw t3, 32(sp)
-    lw s0, 36(sp)
-    addi sp, sp, 40
     jr ra
 
-myCos:
-    addi sp, sp, -44
-    fsw ft0, 0(sp)
-    fsw ft1, 4(sp)
-    fsw ft2, 8(sp)
-    fsw ft3, 12(sp)
-    fsw ft4, 16(sp)
-    sw t0, 20(sp)
-    sw t1, 24(sp)
-    sw t2, 28(sp)
-    sw t3, 32(sp)
-    sw s0, 36(sp)
-    sw t4, 40(sp) # for sign
 
+myCos:          # Returns cos(x) where x=fa0
     # Range Reduction to [0, pi/2] for accuracy
     li t4, 1 # t4 = 1 = sign
     # Load constants
@@ -239,10 +184,10 @@ myCos:
     fmv.s ft3, ft1 # ft3 =  faotiraln = 1.0
     
     la t0, TERMS
-    lw s0, 0(t0)   # s0 = TERMS for taylors
+    lw t5, 0(t0)   # t5 = TERMS for taylors
     li t1, 1 # t1 = i = 1
     cosfor:
-    bgt t1, s0, cosforend
+    bgt t1, t5, cosforend
     
     #START HERE
     #factorial =factorial * (2*i) * (2*i - 1);
@@ -276,34 +221,16 @@ myCos:
     fmul.s ft2, ft2, ft4 # mul sum by sign
     fmv.s fa0, ft2 # return sum(ft2)
 
-    flw ft0, 0(sp)
-    flw ft1, 4(sp)
-    flw ft2, 8(sp)
-    flw ft3, 12(sp)
-    flw ft4, 16(sp)
-    lw t0, 20(sp)
-    lw t1, 24(sp)
-    lw t2, 28(sp)
-    lw t3, 32(sp)
-    lw s0, 36(sp)
-    lw t4, 40(sp)
-    addi sp, sp, 44
     jr ra
 
 
 ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
-    addi sp, sp, -44
+    addi sp, sp, -20
     sw s0, 0(sp)
     sw s1, 4(sp)
-    sw t0, 8(sp)
-    sw a0, 12(sp)
-    sw a1, 16(sp)
-    sw ra, 20(sp)
-    sw t1, 24(sp)
-    sw t3, 28(sp)
-    sw t4, 32(sp)
-    sw t5, 36(sp)
-    fsw ft1, 40(sp)
+    sw a0, 8(sp)
+    sw a1, 12(sp)
+    sw ra, 16(sp)
     
     la s0, real_temp
     la s1, imag_temp
@@ -313,10 +240,11 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     forordina:
     bge t0, a2, endforordina
     
-    addi sp, sp, -12
+    addi sp, sp, -16
     sw a0, 0(sp)
     sw a1, 4(sp)
     sw ra, 8(sp)
+    sw t0, 12(sp) 
     
     add a0, a2, zero # a0 = N
     add a1, t0, zero # a1 = i 
@@ -328,7 +256,8 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     lw a0, 0(sp)
     lw a1, 4(sp)
     lw ra, 8(sp)
-    addi sp, sp, 12
+    lw t0, 12(sp)
+    addi sp, sp, 16
     
     slli t2, t0, 2  # i*4
     slli t3, t1, 2  # rev_index*4
@@ -367,23 +296,21 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     
     lw s0, 0(sp)
     lw s1, 4(sp)
-    lw t0, 8(sp)
-    lw a0, 12(sp)
-    lw a1, 16(sp)
-    lw ra, 20(sp)
-    lw t1, 24(sp)
-    lw t3, 28(sp)
-    lw t4, 32(sp)
-    lw t5, 36(sp)
-    flw ft1, 40(sp)
-    addi sp, sp, 44
+    lw a0, 8(sp)
+    lw a1, 12(sp)
+    lw ra, 16(sp)
+    addi sp, sp, 20
+
     jr ra
+
 
 transform:
  # it receives base address of real[] a0, imag[] a1, and an int N a2, inverse flag in a3
     addi sp, sp, -4
     sw ra, 0(sp)
+
     call ordina
+
     lw ra, 0(sp)
     addi sp, sp, 4
     
@@ -391,70 +318,55 @@ transform:
     la s1, W_imag
     
     # call to cos and sin in loop
-    #############################
-    addi a6, zero, 0 # a6 = i = 0
-    srli s3, a2, 1  # s3 = N/2
+    addi a6, zero, 0            # a6 = i = 0
+    srli s3, a2, 1              # s3 = N/2
+    
+    # Calculating (inverse)*-2*PI/N
+    la a7, NEG_TWO_PI
+    flw fa3, 0(a7)              # fa3 = -2*PI
+    fcvt.s.w fa7, a3            # put inverse (-1) in fa7
+    fmul.s fa3, fa3, fa7        # fa3 = (inverse)*-2*PI
+    fcvt.s.w fa7, a2            # fa7 = N
+    fdiv.s fa3, fa3, fa7 # fa3 = (inverse)*-2*PI/N
+
     sincosfor:
     bge a6, s3, sincosforend
     
-    addi a7, zero, -2
-    mul a7, a7, a3  # multiply a7 by a3. for fft a3 is 1, for ifft a3 is -1
-    fcvt.s.w fa3, a7  # fa3 = -2.0
-    la a7, PI
-    flw fa4, 0(a7)  # fa4 = PI
     fcvt.s.w fa6, a6 # fa6 = i
-    fcvt.s.w fa7, a2 # fa7 = N
+    fmul.s fa0, fa3, fa6    # fa0 is mulvalue
     
-    fmul.s fa5, fa3, fa4
-    fmul.s fa2, fa5, fa6
-    
-    fdiv.s fa1, fa2, fa7  
-    
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # now call myCos by first moving fa1 to fa0 
-    fcvt.s.w ft0, zero
-    fadd.s fa0, fa1, ft0
-    
+    # now call myCos but save fa0 first
     addi sp, sp, -8
     sw ra, 0(sp)
-    fsw fa1, 4(sp)
+    fsw fa0, 4(sp)
     
-    call myCos
-    # Now fa0 has myCos
-    fcvt.s.w ft0, zero
-    fadd.s fs4, ft0, fa0 # fs4 = mycos
+    call myCos          # Now fa0 has myCos
+    fmv.s fs4, fa0 # fs4 = mycos
     
     lw ra, 0(sp)
-    flw fa1, 4(sp)
+    flw fa0, 4(sp)
     addi sp, sp, 8
     
-    ##############################################$%%%%%%%%%%%
-    # now call mySin by first moving fa1 to fa0 
-    fcvt.s.w ft0, zero
-    fadd.s fa0, fa1, ft0
-    
+    # now call mySin but no need to save fa0 this time, because it will not be used
     addi sp, sp, -4
     sw ra, 0(sp)
     
-    call mySin
-    # Now fa0 has mySin 
-    fadd.s fs5, ft0, fa0 # fs5 = mysin
+    call mySin               # Now fa0 has mySin
+    fmv.s fs5, fa0 # fs5 = mysin
     
     lw ra, 0(sp)
     addi sp, sp, 4
+
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ## NOW JUST SAVE WORD TO W_real I
     ## FIRST MAKE OFFSET i*4
-    la s0, W_real 
     slli a7, a6, 2  # a7 = i*4
     add a7, a7, s0 # W_real address
     fsw fs4, 0(a7)
     
-    la s1, W_imag
     slli a7, a6, 2  # a7 = i*4
     add a7, a7, s1 # W_imag address
     fsw fs5, 0(a7)
-    
     
     addi a6, a6, 1  # i++
     j sincosfor
@@ -467,9 +379,10 @@ transform:
     addi t0, zero, 0  # t0 = j = 0
     
     # for loop  need logint(N)
-    addi sp, sp, -8
+    addi sp, sp, -12
     sw ra, 0(sp)
     sw a0, 4(sp)
+    sw t0, 8(sp)
     
     #call here 
     add a0, zero, a2
@@ -479,7 +392,8 @@ transform:
     
     lw ra, 0(sp)
     lw a0, 4(sp)
-    addi sp, sp, 8
+    lw t0, 8(sp)
+    addi sp, sp, 12
     ## call end, s4 have logint(N)
     transformfor1:
     bge t0, s4, endtransformfor1
@@ -570,14 +484,12 @@ transform:
     jr ra
     
     
-FFT: # takes input real a0, imag a1, N a2, d fa3
-    addi sp, sp, -24
+FFT: # takes input real a0, imag a1, N a2
+    addi sp, sp, -16
     sw a0, 0(sp)
     sw a1, 4(sp)
     sw a2, 8(sp)
     sw ra, 12(sp)
-    fsw fa3, 16(sp)
-    sw a3, 20(sp)
     
     addi a3, zero, 1 # 0 is false, no inverse
     call transform
@@ -586,42 +498,17 @@ FFT: # takes input real a0, imag a1, N a2, d fa3
     lw a1, 4(sp)
     lw a2, 8(sp)
     lw ra, 12(sp)
-    flw fa3, 16(sp)
-    lw a3, 20(sp)
-    addi sp, sp, 24
+    addi sp, sp, 16
     
-    addi t0, zero, 0 # i = 0
-    forloopfft:
-    bge t0, a2, endforloopfft
-    slli t1, t0, 2  # offset
-    # lets do real first
-    add t2, a0, t1 # real base a0 + offest t1
-    flw ft2, 0(t2)
-    fmul.s ft2, ft2, fa3 # mul by d
-    fsw ft2, 0(t2)
-    
-    # now do imag
-    add t2, a1, t1 # imag base a0 + offest t1
-    flw ft2, 0(t2)
-    fmul.s ft2, ft2, fa3 # mul by d
-    fsw ft2, 0(t2)
-    
-    
-    addi t0, t0, 1
-    j forloopfft
-    
-    endforloopfft:
     jr ra
     
 
-IFFT: # takes input real a0, imag a1, N a2, d fa3
-    addi sp, sp, -24
+IFFT: # takes input real a0, imag a1, N a2
+    addi sp, sp, -16
     sw a0, 0(sp)
     sw a1, 4(sp)
     sw a2, 8(sp)
     sw ra, 12(sp)
-    fsw fa3, 16(sp)
-    sw a3, 20(sp)
     
     addi a3, zero, -1 # 1 is true so inverse
     call transform
@@ -630,9 +517,7 @@ IFFT: # takes input real a0, imag a1, N a2, d fa3
     lw a1, 4(sp)
     lw a2, 8(sp)
     lw ra, 12(sp)
-    flw fa3, 16(sp)
-    lw a3, 20(sp)
-    addi sp, sp, 24
+    addi sp, sp, 16
     
     addi t0, zero, 0 # i = 0
     forloopifft:
@@ -722,7 +607,6 @@ _finish:
 .data  
     # PUT INPUT HERE, DO NO CHANHE ABOVE THIS
 
-
     real: .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
@@ -743,6 +627,7 @@ _finish:
           .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
 
     .set dataSize, 256          # THIS IS N
+
     # DO NOT CHANGE ANYTHING AFTER THIS LINE
 
     .set halfDataSize, dataSize/2 

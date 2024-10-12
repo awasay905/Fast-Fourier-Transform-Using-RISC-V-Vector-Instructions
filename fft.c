@@ -9,7 +9,7 @@
 #define NEG_HALF_PI (-HALF_PI)
 #define TWO_PI (PI * 2.0f)
 #define NEG_TWO_PI (-TWO_PI)
-#define TERMS 15
+#define TERMS 12
 #define MAX 200
 
 int logint(int N) // Calculates the log2 of number
