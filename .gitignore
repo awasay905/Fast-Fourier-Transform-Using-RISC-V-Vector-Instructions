@@ -11,3 +11,6 @@ PythonFiles/tempFiles/
 .vscode/settings.json
 .vscode/tasks.json
 fft
+VeerFiles/TEST2.exe
+VeerFiles/program2.hex
+VeerFiles/TEST2.dis
