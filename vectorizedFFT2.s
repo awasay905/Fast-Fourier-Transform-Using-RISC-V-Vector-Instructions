@@ -5,90 +5,88 @@
 .global _start
 _start:
 
-main:                       # Main Function. Calls FFT and IFFT
-    call initHelperVector           # Initialize HelperVector for later uses
-    la a0, real                     # a0 holds address of array real[]
-    la a1, imag                     # a1 holds address of array imag[]
-    la a2, size                     # use a2 to load size of arrays real/img
-    lw a2, 0(a2)                    # a2 holds the size of arrays real/imag
+# Initialize helper vector and load data addresses
+main:
+    call initHelperVector
+    la a0, real                     # a0 = address of real[]
+    la a1, imag                     # a1 = address of imag[]
+    lw a2, size                     # a2 = size of arrays (N)
+
+    # Perform FFT and IFFT
+    call vFFT
+    call vIFFT
     
-    call vFFT                       # Apply FFT on the arrays
-    call vIFFT                      # Apply IFFT on the arrays
+    # Print results and finish
+    call print
+    j _finish 
+
+# Initialize helper vector with sequential integers (0,1,2,3..)
+initHelperVector:
+    la t0, helperVector
+    li t1, vectorSize
+    vsetvli t2, t1, e32, m1         # Set vector length once
+    vid.v v0                        # Generate index vector
+    vse32.v v0, (t0)
+    ret
     
-	call print                      # Writes down value of arrays to regsiter for helping in log
-    j _finish                       # End program
-    
-
-initHelperVector:                   # Makes helperVEcotr = {0,1,2,3 ...VLEN-1}\. Uses t0, t1, t2
-    la t0, helperVector             # Load base address
-    li t1, vectorSize               # Load size of vector
-    li t2, 0                        # t2 = i = 0
-
-    helperVectorLoop:               # Loop to save i from 0 to VLEN-1 to helperVector
-    bge t2, t1, endHelperVectorLoop # for i <= vectorSize
-    sw t2, 0(t0)                    # Save i to helperVector
-    addi t0, t0, 4                  # Add 4 offset to address
-    addi t2, t2, 1                  # i = i + 1
-    j helperVectorLoop
-
-    endHelperVectorLoop:
-    jr ra
-    
-
-logInt:                     # Takes input N(a0), returns its log-base 2 in a0. Uses t0
-    add t0, a0, zero                # t0 = k = N    , loop counter
-    add a0, zero, zero              # a0 = i = 0
-
-    logLoop:                        # while(k) i.e when k is non-zero
-    beq t0, zero, logLoopEnd        # If k becomes 0, end loop
-    srai t0, t0, 1                  # Shift right k by 1. K = k >> 1
-    addi a0, a0, 1                  # i++. Increment i
+# Calculate log base 2 of input
+# Input:  a0 = N
+# Output: a0 = log2(N)
+logInt:
+    mv t0, a0                       # t0 = N (loop counter)
+    li a0, 0                        # a0 = result
+    logLoop:
+    beqz t0, logLoopEnd
+    srli t0, t0, 1
+    addi a0, a0, 1
     j logLoop
     logLoopEnd:
-
-    addi a0, a0, -1                 # Return i - 1
-    jr ra                           # Return to caller
-
-
-vReverse:                   # Takes vector n in v29, array size N in a0 . Returns bit reverse of vector in v29.  Assume vsetsli has been done. Uses t0-t4
-    addi sp, sp, -4                 # Save values before function call
+    addi a0, a0, -1                 # Adjust result
+    ret
+    
+# Bit-reverse the elements of a vector
+# Input:  v29 = input vector, a0 = N
+# Output: v29 = bit-reversed vector
+vReverse:
+    # Save ra as we're calling another function
+    addi sp, sp, -4
     sw ra, 0(sp)
     
-    call logInt                     # Getting log of a0.    a0  = logN
+    call logInt                     # a0 = log2(N)
     
     lw ra, 0(sp)
-    addi sp, sp, 4                  # Restore Stack and values
- 
+    addi sp, sp, 4
 
-    li t0, 1                        # j = 1
-    li t1, 1                        # To use in shift left
-    vmv.v.i v28, 0                  # V28   = <p>   = 0
+    li t1, 1                        # 1 for use in bit shift
+    li t0, 1                        # t0 = jbit position counter
+    vmv.v.x v28, zero               # v28 = p = result vector (initially 0)
 
-    # This loop iterates not over the vector elements but for N
-    vReverseFor:                    # For j <= logN
-    bgt t0, a0, vReverseForEnd      # Break when j > logN
+    vReverseLoop:                   # For j <= logN
+    bgt t0, a0, vReverseEnd         # Break when j > logN
 
     sub t2, a0, t0                  # t2    = logN - j
     sll t3, t1, t2                  # t3    = (1 << (LogN - j))
     
-    vand.vx v0, v29, t3            # v0   = v29 & t2 = n & (1 << (LogN - j))
-    vmsne.vx v0, v0, zero          # v0    = 1 if (n & (1 << (LogN - j))) else 0
+    vand.vx v0, v29, t3             # v0   = v29 & t2 = n & (1 << (LogN - j))
+    vmsne.vx v0, v0, zero           # v0    = 1 if (n & (1 << (LogN - j))) else 0
 
-    addi t4, t0, -1                  # t4    = t0 - 1   = j - 1
+    addi t4, t0, -1                 # t4    = t0 - 1   = j - 1
     sll t3, t1, t4                  # t3    = t5 << t4  = 1 << (j - 1)
 
-    vor.vx v28, v28, t3, v0.t       # v28   = v28 | 1 << ( j - 1) , if condition
+    vor.vx v28, v28, t3, v0.t       # v28 = v28 | 1 << ( j - 1) Set bit in result if mask is true
 
-    addi t0, t0, 1                  # j++
-    j vReverseFor
-    vReverseForEnd:
+    addi t0, t0, 1                  # Move to next bit
+    j vReverseLoop
+    vReverseEnd:
 
     vmv.v.v v29, v28                # Move to v29
 
     jr ra
 
 
-vMySin:                     # Takes input v31 of floats. Returns sin(v31) in v31. Assume vector length is set. Uses t0, t1, ft0, ft1, ft2
+# Input:  v31 = angles in radians
+# Output: v31 = sine values
+vMySin:       # Uses t0, t1, ft0, ft1, ft2
     # all vectors except v20, v21 and v22 are free to use
     # Range Reduction
     la t0, NEG_HALF_PI              # t0 = *NEG_HALF_PI
@@ -143,7 +141,8 @@ vMySin:                     # Takes input v31 of floats. Returns sin(v31) in v31
 
     jr ra                           # Return to caller
 
-
+# Input:  v30 = angles in radians
+# Output: v30 = cosine values
 vMyCos:                     # Takes input v30 of floats, and vector length a0. Returns cos(v30) in v30
     vmv.v.i v1, 1           # v1 = sign = 1
     # all vectors except v20, v21 and v22 are free to use
@@ -208,8 +207,6 @@ vMyCos:                     # Takes input v30 of floats, and vector length a0. R
 vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all temp registers maybe. i havent checked
     addi sp, sp, -36                # Make space to save registers used
     sw a0, 0(sp)
-    sw a1, 4(sp)
-    sw a2, 8(sp)
     sw a3, 12(sp)
     sw a4, 16(sp)
 
@@ -275,8 +272,6 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     endvOrdinaLoop2:
 
     lw a0, 0(sp)
-    lw a1, 4(sp)
-    lw a2, 8(sp)
     lw a3, 12(sp)
     lw a4, 16(sp)
     addi sp, sp, 36                # We use 9 registers in this one
