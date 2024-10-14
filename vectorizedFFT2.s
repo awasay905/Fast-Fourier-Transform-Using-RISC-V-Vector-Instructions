@@ -23,7 +23,7 @@ main:
 # Initialize helper vector with sequential integers (0,1,2,3..)
 initHelperVector:
     la t0, helperVector
-    li t1, vectorSize
+    lw t1, size
     vsetvli t2, t1, e32, m1         # Set vector length once
     vid.v v0                        # Generate index vector
     vse32.v v0, (t0)
@@ -116,8 +116,7 @@ vMySin:       # Uses t0, t1, ft0, ft1, ft2
     li t0, 1                    # t0    = i  = 1
     fcvt.s.w ft1, t0 # ft1 = 1      # ft1 = factorial = 1
 
-    la t1, TERMS
-    lw t1, 0(t1)                    # t1 = TERMS
+    lw t1, TERMS              # t1 = TERMS
     vSinFor:                        # for loop i <= 2*TERMS + 1
     bgt t0, t1, vSinForEnd          # Break when i > 2*TERMS + 1
 
@@ -137,7 +136,7 @@ vMySin:       # Uses t0, t1, ft0, ft1, ft2
     addi t0, t0, 1                  # i     = i + 1
     j vSinFor
     vSinForEnd:
-
+    vmv.v.v v19, v31
 
     jr ra                           # Return to caller
 
@@ -175,8 +174,7 @@ vMyCos:                     # Takes input v30 of floats, and vector length a0. R
     vfmv.v.f v3, ft1                # v3   = term  = 1
     vfmv.v.f v30, ft1                # v30   = sum   = 1
 
-    la t1, TERMS
-    lw t1, 0(t1)                    # t1 = TERMS
+    lw t1, TERMS                  # t1 = TERMS
     vCosFor:                        # for loop i <= 2*TERMS + 1
     bgt t0, t1, vCosForEnd          # Break when i > 2*TERMS + 1
 
@@ -198,7 +196,7 @@ vMyCos:                     # Takes input v30 of floats, and vector length a0. R
     vCosForEnd:
     
     vfcvt.f.x.v v1, v1  # converts sign to float
-    vfmul.vv v30, v30, v1
+    vfmul.vv v20, v30, v1
 
     jr ra                           # Return to caller
 
@@ -293,24 +291,25 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     la t2, W_imag                   # t2    = W_imag[]
 
     # Loop for Sin/Cos (Euler Formula)
-    srai a4, a2, 1                  # a4    =   N / 2   = a / 2
-    vsetvli t0, a4, e32             # Vector for N/2 elements
+    la t0, helperVector             # Helper Vector is a vector of sequential number, hardcoded
+    vle32.v v22, 0(t0)              # v22 = {0, 1, 2, 3, 4 .. VLEN -1}
 
-    li t3, 0                        # t3    = i = 0
+    la t0, NEG_TWO_PI               # Load mem address of -2PI to t0
+    flw ft1, 0(t0)                  # Load -2PI to ft1
 
-    la t4, helperVector             # Helper Vector is a vector of sequential number, hardcoded
-    vle32.v v22, 0(t4)              # v22 = {0, 1, 2, 3, 4 .. VLEN -1}
-
-    la t4, NEG_TWO_PI               # Load mem address of -2PI to t4
-    flw ft1, 0(t4)                  # Load -2PI to ft1
     fcvt.s.w ft3, a2                # ft3 = N
     fdiv.s ft1, ft1, ft3            # ft1 = ft1 / ft3 = -2PI *  / N
+
     fcvt.s.w ft3, a3                # inverse
-    fmul.s ft1, ft1, ft3               # Multiply by inverse. If a3 is -1, then IFFT is done, else FFT
+    fmul.s ft1, ft1, ft3            # Multiply by inverse. If a3 is -1, then IFFT is done, else FFT
+
+    srai a4, a2, 1                  # a4    =   N / 2   = a / 2
+    vsetvli t0, a4, e32             # Vector for N/2 elements
+    li t3, 0                        # t3    = i = 0
     vsincosloop:                    # for loop i = 0; i < N / 2;
     bge t3, a4, endvsincosloop      # as soon as num element t0 >= N/2, break
 
-    vadd.vx v23, v22, t3            # v21 = v22 + i => {i, i+1, i+2, ..., i + VLEN -1}. Rn its i integer
+    vadd.vx v23, v22, t3            # v23 = v22 + i => {i, i+1, i+2, ..., i + VLEN -1}. Rn its i integer
     vfcvt.f.x.v v21, v23            # Convert helperVector 0,1,2 to floats.                     i float
     vfmul.vf v21, v21, ft1          # v21[i] = (inverse * -2.0 * PI  / N )*  i . Now we need cos and sins of this
 
@@ -324,11 +323,9 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
 
     vmv.v.v v30, v21                # Load v21 to v30 to pass to myCos
     call vMyCos                     # v30 = cos(v21) 
-    vmv.v.v v20, v30                # Save v30 to v20 for later use
 
     vmv.v.v v31, v21                # Load v21 to v31 to pass to mySin
     call vMySin                     # v31 = sin(v21)
-    vmv.v.v v19, v31                # Save v31 to v19 for later use
 
     flw ft1, 0(sp)
     lw t3, 4(sp)
@@ -375,6 +372,7 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
   
     li s1, 0                        # s1 = i = 0
     
+    mul s5, a5, a4                  # s5 = n*a  // shfted it out of loop
 
     vinnerloop:                     # for i = 0; i < N
     bge s1, a2, vinnerloopend       # i  >= num elemenets
@@ -382,18 +380,14 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vadd.vx v20, v19, s1            # v18 = i, i+1, i+2, ....., i + VLEN-1
     vand.vx v18, v20, a5            # v1 & n = (i & n), (i+1 & n), .... (i + VLEN -1   & n)
     vmseq.vx v0, v18, zero         # if (!(i & n)) which means this loop work only when result is 0,
-
-
     # THIS IS THE IF BLOCK. EVERY OPERATION WILL BE MASKED wrt v0
 
     # Loading real[i] and image[i]
     vsll.vi v21, v20, 2 , v0.t                 # s1 = i * 4 = offset, becasue each float 4 byte		
     vloxei32.v v16, 0(a0), v21 , v0.t     # real[i]. v16 = temp_real
     vloxei32.v v17, 0(a1)  ,v21 , v0.t     # imag[i]. v17 = temp_imag
-    
 
     vmul.vx v15, v20, a4 , v0.t     # v15 = v15*a = i*a
-    mul s5, a5, a4                  # s5 = n*a
     vrem.vx v15, v15, s5, v0.t      # v15 = v15 % (n*a)
 
     ## Load W_real[k], but k in int index, so mul by 4 to become offsets
@@ -440,53 +434,47 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
 
 
 vFFT:                       # Takes real a0, imag in a1, and N a2. Uses no t registers
-    addi sp, sp, -8
+    addi sp, sp, -4
     sw ra, 0(sp)
-    sw a3, 4(sp)
 
     li a3, 1                        # Inverse Flag a3 = 1 for FFT, -1 for IFFT
     call vTransform
    
     lw ra, 0(sp)
-    lw a3, 0(sp)
-    addi sp, sp, 8
+    addi sp, sp, 4
     
     jr ra
     
 
 vIFFT:                      # Takes real a0, imag in a1, and N a2. USES t0-4 and ft0
-    addi sp, sp, -8
+    addi sp, sp, -4
     sw ra, 0(sp)
-    sw a3, 4(sp)
     
     li a3, -1                        # Inverse Flag. a3 = 1 for FFT, -1 for IFFT
     call vTransform
     
     lw ra, 0(sp)
-    lw  a3, 4(sp)
-    addi sp, sp, 8
+    addi sp, sp, 4
     
-    vsetvli t0, a2, e32, m1         # Set vector length to a2, acutal lenght stored in t0
+    vsetvli t0, a2, e32, m1         # GEt VLEN. Set vector length to a2, acutal lenght stored in t0
     fcvt.s.w ft0, a2                # Convert N t0 float as we have to divide
 
     li t1, 0                        # i = 0. starting index
     slli t2, t0, 2                  # shift vlen by 2 for offest
-    mv t3, a0                       # moves real address to t3
-    mv t4, a1                       # moves imag addrress to t4
     vectorIFFTLoop:                 # for (int i = 0; i < N; i++)
     bge t1, a2, endVectorIFFTLoop   # break when i >= N
 
-    vle32.v v3, 0(t3)               # load t0 real values to vector v3
-    vle32.v v4, 0(t4)               # load t0 imag values to vector v4
+    vle32.v v1, 0(a0)               # load t0 real values to vector v1
+    vle32.v v2, 0(a1)               # load t0 imag values to vector v2
 
-    vfdiv.vf v3, v3, ft0            # v3[i] = v3[i] / ft0 , ft0 is N in input
-    vfdiv.vf v4, v4, ft0            # v4[i] = v4[i] / ft0 , ft0 is N in input
+    vfdiv.vf v1, v1, ft0            # v1[i] = v1[i] / ft0 , ft0 is N in input
+    vfdiv.vf v2, v2, ft0            # v2[i] = v2[i] / ft0 , ft0 is N in input
 
-    vse32.v v3, 0(t3)               # save result back to meme
-    vse32.v v4, 0(t4)               # same as above
+    vse32.v v1, 0(a0)               # save result back to meme
+    vse32.v v2, 0(a1)               # same as above
 
-    add t3, t3, t2                  # real + VLEN
-    add t4, t4, t2                  # imag + VLEN
+    add a0, a0, t2                  # real + VLEN
+    add a1, a1, t2                  # imag + VLEN
 
     add t1, t1, t0                 # i += VLEN
     j vectorIFFTLoop
@@ -496,8 +484,7 @@ vIFFT:                      # Takes real a0, imag in a1, and N a2. USES t0-4 and
 
     
 print:                      # Writes real/imag in the ft0 and ft1 register for log. uses t0-3, ft0-1	
-	la t1, size                     # t1 has base address of word size
-	lw t3, 0(t1)                    # load size to register t3
+	lw t3, size                    # load size to register t3
 	
 	la t1, real                     # now t1 has address of reals
 	la t2, imag	                    # now t2 has address of imag
@@ -534,20 +521,18 @@ _finish:
 .rept 100
     nop
 .endr
-
-
 .data  
     # PUT INPUT HERE, DO NO CHANHE ABOVE THIS
 
     real: .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
-          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,420
 
     imag: .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
-          .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+          .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,6969
           
     .set dataSize, 128          # THIS IS N
 
@@ -584,7 +569,7 @@ _finish:
     HALF_PI: .float 1.57079632679489661923
     NEG_HALF_PI: .float -1.57079632679489661923
     ONE: .float 1
-    TERMS: .word 10
+    TERMS: .word 14
 
     helperVector:
         .rept vectorSize

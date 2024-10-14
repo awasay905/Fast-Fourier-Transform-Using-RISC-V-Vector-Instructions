@@ -1,0 +1,196 @@
+main
+
+
+# There is no functio using any register rn. 
+call initHelperVector
+    initHelperVector uses t0, t1, t2 and v0 register
+    no need to save or restore any of them since no function requires their prev value
+
+    return to main
+
+use a0, a1, a2 to make FFT/IFFT input
+
+call vFFT/vIFFT
+
+vFFT:
+    Saves ra to stack
+    puts 1 in a3            # no need to save a3. no function needs its prev value 
+    calls vTranfform
+    resotres ra from stack
+    return to main
+
+
+vIFFT:
+    Saves ra  to stack          
+    puts -11 in a3             # no need to save a3. no function needs its prev value 
+    calls vTranfform     
+    transform needs a0, a1, a2 so make sure it isnt distrubed
+    ############TRANSFORM################
+        saved ra
+        calls Ordina
+
+        ###ORDINA####
+        saves a0, a3 and a4 bevase it will be using them
+
+        moves real and imag address to t5 and t6
+        moves real and imag temp address to a3 and a4
+
+        sets vector lenght to N
+
+        load helper vector to v26
+
+        starts loop
+
+        call vRevese on the vector by moving helper vector to v29
+
+
+        make sure reverse do not use v26 or t0
+        #### VREEVRES
+
+        call logInt 
+
+        make p = v28
+
+        loop and do stuff
+        loop end
+
+        move v28 to v29 
+
+        rerutnr
+
+
+        ###VEREVERSE END
+
+        loads values from reversed index and saved it to normal indexed in temp 
+
+        increase helpervector i
+
+        ends loop
+        starts 2n loop
+
+        loads  values from temp
+        saves it to normal array
+
+        ends loop
+
+        restores registersr
+        return
+
+
+        ### RODINA END
+        restores ra
+
+    # it still have a0, a1 and a2 to use
+
+    loads W_real and W_imag address to t1 and t2
+
+    loop prep for sin/cos
+
+    load helperVector address to t0
+    load helperVector to v22
+
+    loead -2pi address to t0
+    load -2pi to ft1
+    load it to v1
+
+    convert N in a2 to float in ft3
+    makes -2pi/N and saved in ft1 // saves it i mean
+
+    makes inverse flag float 
+    make -2pi/n * inverse in ft1 // saves it i mean
+
+    put N/2 in a4
+    set vector length for a4
+
+    loads i = 0 in t3 for loop
+
+    addes i to helper vector. saves result to v23
+    convters v23 to float, saving to v21
+    multuplirs v21 by -2pi*inverse/N to get value for sin/cos
+
+    save temp register
+    make sure sin/cos do not edit v21 and v23<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    call myCos
+    result will be savedi in v20
+
+    call mySin
+    result will be saved in v19
+
+    restore register
+
+    now saving to W_real/W_imag
+    first multipay offset i.e i in helpervector by 4 usging slli
+    use indexed stores
+
+    incremenet loop
+    end loop
+
+    ## now we start nested loop
+    ## all registers before this are not needed. 
+    ## only a0, a1 and a2 are reuiqred
+
+    saved n to 51, a to a5, j to s0
+    save register a0 nd ra and call logint
+    save logint result to a3
+    restule register a0 and ra
+
+    set vector length to n
+    load helper vector address to s2
+    load that to v19
+
+    start loop
+    s1 = i = 0
+    start inner loop
+    stuff happens in it
+
+    end inner loop
+    mulitplu n by 2 in a5
+    diving a 
+    incrememt loop index
+
+    end loop
+    # nohign after transform need any register prevous value   
+    resotres ra  from stack
+    return to main
+
+    Need a0, a1, and a2 so make sure it is safe
+    Also now we are free to use any register
+
+    sets vector length. its bvecause we want to know vlen
+    convert vector length N (a2) to float ft0
+
+    initialize loop variavle i = 0 in t1
+    since we will be saving/storing. we need address. 
+    address increment by i but since we have word of size 4 byte, 
+    we will multiply vlen (the amount by which i increase) by 4
+
+    loop start
+
+    first load value from real/imag to v1 and v2
+    divide the value by N (ft0)
+    stroe the value back
+
+    increment addresses by VLEN*4
+
+
+# print doesnt rely on other register
+call print
+    print uses t3, t2, t1, t0, ft0 and ft1 register
+    loads size, real, imag in t3, t1, t2
+    loads specific number to t0 for python script
+
+    starts loop 
+    loads value from real/imag
+    increment address
+
+    ends loop
+
+    loads specific number to t0 for python script
+
+    no need to save or restore any of them since no function 
+    called after print
+
+    return to main
+
+jump to finish
+end
