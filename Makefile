@@ -1,50 +1,64 @@
 GCC_PREFIX = riscv32-unknown-elf
 ABI = -march=rv32gcv -mabi=ilp32f
-LINK = ./VeerFiles/link.ld
+LINK = ./veer/link.ld
+CODEFOLDER = ./src/assembly
+TEMPPATH = ./veer/tempFiles
 
-all: compile execute
+clean: cleanV cleanV2 cleanNV cleanNV2
 
 
-clean: 
-	rm -f ./VeerFiles/log.txt ./VeerFiles/program.hex ./VeerFiles/TEST.dis ./VeerFiles/TEST.exe
+allV: compileV executeV
+
+cleanV: 
+	rm -f $(TEMPPATH)/logV.txt  $(TEMPPATH)/programV.hex  $(TEMPPATH)/TESTV.dis  $(TEMPPATH)/TESTV.exe
 	
-compile:
-	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o ./VeerFiles/TEST.exe vectorizedFFT.s -nostartfiles -lm
-	$(GCC_PREFIX)-objcopy -O verilog ./VeerFiles/TEST.exe ./VeerFiles/program.hex
-	$(GCC_PREFIX)-objdump -S ./VeerFiles/TEST.exe > ./VeerFiles/TEST.dis
+compileV:
+	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o  $(TEMPPATH)/TESTV.exe $(CODEFOLDER)/FFT_V.s -nostartfiles -lm
+	$(GCC_PREFIX)-objcopy -O verilog  $(TEMPPATH)/TESTV.exe  $(TEMPPATH)/programV.hex
+	$(GCC_PREFIX)-objdump -S  $(TEMPPATH)/TESTV.exe >  $(TEMPPATH)/TESTV.dis
 	
-	
-execute:
-	whisper -x ./VeerFiles/program.hex -s 0x80000000 --tohost 0xd0580000 -f ./VeerFiles/log.txt --configfile ./VeerFiles/whisper.json
+executeV:
+	whisper -x  $(TEMPPATH)/programV.hex -s 0x80000000 --tohost 0xd0580000 -f  $(TEMPPATH)/logV.txt --configfile ./veer/whisper.json
+
 
 allNV: compileNV executeNV
 
-
 cleanNV: 
-	rm -f ./VeerFiles/logNV.txt ./VeerFiles/programNV.hex ./VeerFiles/TESTNV.dis ./VeerFiles/TESTNV.exe
+	rm -f $(TEMPPATH)/logNV.txt  $(TEMPPATH)/programNV.hex  $(TEMPPATH)/TESTNV.dis  $(TEMPPATH)/TESTNV.exe
 	
 compileNV:
-	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o ./VeerFiles/TESTNV.exe FFT.s -nostartfiles -lm
-	$(GCC_PREFIX)-objcopy -O verilog ./VeerFiles/TESTNV.exe ./VeerFiles/programNV.hex
-	$(GCC_PREFIX)-objdump -S ./VeerFiles/TESTNV.exe > ./VeerFiles/TESTNV.dis
-	
+	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o  $(TEMPPATH)/TESTNV.exe $(CODEFOLDER)/FFT_NV.s -nostartfiles -lm
+	$(GCC_PREFIX)-objcopy -O verilog  $(TEMPPATH)/TESTNV.exe  $(TEMPPATH)/programNV.hex
+	$(GCC_PREFIX)-objdump -S  $(TEMPPATH)/TESTNV.exe >  $(TEMPPATH)/TESTNV.dis
 	
 executeNV:
-	whisper -x ./VeerFiles/programNV.hex -s 0x80000000 --tohost 0xd0580000 -f ./VeerFiles/log.txt --configfile ./VeerFiles/whisper.json
+	whisper -x  $(TEMPPATH)/programNV.hex -s 0x80000000 --tohost 0xd0580000 -f  $(TEMPPATH)/logNV.txt --configfile ./veer/whisper.json
 
 
+allV2: compileV2 executeV2
 
-all2: compile2 execute2
-
-
-clean2: 
-	rm -f ./VeerFiles/log.txt ./VeerFiles/program.hex ./VeerFiles/TEST.dis ./VeerFiles/TEST.exe
+cleanV2: 
+	rm -f $(TEMPPATH)/logV2.txt  $(TEMPPATH)/programV2.hex  $(TEMPPATH)/TESTV2.dis  $(TEMPPATH)/TESTV2.exe
 	
-compile2:
-	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o ./VeerFiles/TEST2.exe vectorizedFFT2.s -nostartfiles -lm
-	$(GCC_PREFIX)-objcopy -O verilog ./VeerFiles/TEST2.exe ./VeerFiles/program2.hex
-	$(GCC_PREFIX)-objdump -S ./VeerFiles/TEST2.exe > ./VeerFiles/TEST2.dis
+compileV2:
+	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o  $(TEMPPATH)/TESTV2.exe $(CODEFOLDER)/FFT_V2.s -nostartfiles -lm
+	$(GCC_PREFIX)-objcopy -O verilog  $(TEMPPATH)/TESTV2.exe  $(TEMPPATH)/programV2.hex
+	$(GCC_PREFIX)-objdump -S  $(TEMPPATH)/TESTV2.exe >  $(TEMPPATH)/TESTV2.dis
 	
 	
-execute2:
-	whisper -x ./VeerFiles/program2.hex -s 0x80000000 --tohost 0xd0580000 -f ./VeerFiles/log.txt --configfile ./VeerFiles/whisper.json
+executeV2:
+	whisper -x  $(TEMPPATH)/programV2.hex -s 0x80000000 --tohost 0xd0580000 -f  $(TEMPPATH)/logV2.txt --configfile ./veer/whisper.json
+
+
+allNV2: compileNV2 executeNV2
+
+cleanNV2: 
+	rm -f $(TEMPPATH)/logNV2.txt  $(TEMPPATH)/programNV2.hex  $(TEMPPATH)/TESTNV2.dis  $(TEMPPATH)/TESTNV2.exe
+	
+compileNV2:
+	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o  $(TEMPPATH)/TESTNV2.exe $(CODEFOLDER)/FFT_NV2.s -nostartfiles -lm
+	$(GCC_PREFIX)-objcopy -O verilog  $(TEMPPATH)/TESTNV2.exe  $(TEMPPATH)/programNV2.hex
+	$(GCC_PREFIX)-objdump -S  $(TEMPPATH)/TESTNV2.exe >  $(TEMPPATH)/TESTNV2.dis
+	
+executeNV2:
+	whisper -x  $(TEMPPATH)/programNV2.hex -s 0x80000000 --tohost 0xd0580000 -f  $(TEMPPATH)/logNV2.txt --configfile ./veer/whisper.json
