@@ -91,6 +91,11 @@ python3 readVeerOutput.py
 3. Choose what to do (FFT/IFFT/vFFT/vIFFT)
 4. The python code calls the VeerSimulator via subprocess
 5. The result is returned in a tuple having the output, runtime, and cpu cycle count for veer
+
+## Python Wrapper Function Documentation
+[Here](./docs/functions.md)
+
+
 ## Runtime
 The time required to run FFT normally is N * LogN where N is the number of input. With this vectorized version, each operation is done on VLEN (vector length/ amount of element in a vector) element altogether, resulting in N * LogN / VLEN time required. Benchmarking on the VeeR Simulator with VLEN of 8 resulted in almost 5 times less cycles in vectorized code compared to non-vectorized code.
 
