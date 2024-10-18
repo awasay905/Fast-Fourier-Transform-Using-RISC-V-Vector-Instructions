@@ -1,0 +1,6 @@
+fft_results.csv
+tests/tempFiles/*.txt
+tests/tempFiles/*.exe
+tests/tempFiles/*.hex
+tools/__pycache__/__init__.cpython-312.pyc
+tools/__pycache__/functions.cpython-312.pyc

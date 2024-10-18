@@ -213,7 +213,7 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     la a3, real_temp                # a3    = real_temp[] pointer
     la a4, imag_temp                # a4    = imag_temp[] pointer 
 
-    vsetvli t0, a2, e32, m1         # Request vector for a2 length
+    vsetvli a6, a2, e32, m1         # Request vector for a2 length
     
     la t1, helperVector             # Load addres of vector 0,1,2,3... 
     vle32.v v26, 0(t1)              # v26 = <i> = {0, 1, 2, ... VLEN-1} => {i, i+1, i+2, ... i + VLEN - 1}
@@ -244,9 +244,9 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     vsoxei32.v v23, 0(a3) , v27             # real_temp[i] = real[rev_index];
     vsoxei32.v v24, 0(a4)  , v27            # imag_temp[i] = imag[rev_index];
 
-    vadd.vx v26, v26, t0            # adds VLEN to helperVector, so all indexes increase by VLEN
+    vadd.vx v26, v26, a6            # adds VLEN to helperVector, so all indexes increase by VLEN
 
-    add t1, t1, t0                  # i = i + VLEN   
+    add t1, t1, a6                  # i = i + VLEN   
     j vOrdinaLoop
     endVOrdinaLoop:
 
@@ -263,9 +263,9 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
 
     vsoxei32.v v23, 0(t5) , v27             # real[i] = realtemp[i], well its j but nvm
     vsoxei32.v v24, 0(t6), v27
-    vadd.vx v26, v26, t0            # adds VLEN to helperVector, so all indexes increase by VLEN
+    vadd.vx v26, v26, a6            # adds VLEN to helperVector, so all indexes increase by VLEN
 
-    add t1, t1, t0                  # i = i + VLEN
+    add t1, t1, a6                  # i = i + VLEN
     j vOrdinaLoop2              
     endvOrdinaLoop2:
 

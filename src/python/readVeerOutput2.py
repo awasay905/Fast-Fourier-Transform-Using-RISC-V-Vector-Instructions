@@ -92,7 +92,7 @@ def read_file_reverse_and_process(file_path):
     return start_index, end_index
 
 if __name__ == "__main__":
-    file_path = "./VeerFiles/log.txt"  # Replace with your file path
+    file_path = "./veer/tempFiles/logV2.txt"  # Replace with your file path
     start, end = read_file_reverse_and_process(file_path)
     realVal, imagVal = process_file(file_path, start, end)
     realVal = hex_to_float(realVal)
