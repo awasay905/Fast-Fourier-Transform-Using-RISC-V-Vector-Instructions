@@ -594,8 +594,41 @@ def benchmark_different_sizes(sizes,real = [], imag = [], hardcoded = False):
         
     return results
 
+#Perform FFT/IFFT tests on given sizes, check for existing results,
+#    and save new results to the CSV file.
+#    :param sizes: List of sizes to test.
+#    :param filename: Name of the CSV file to save results to.
+#    :param real: Real part of the input array.
+#    :param imag: Imaginary part of the input array.
+#    :param hardcoded: Whether to use hardcoded values or random values.
+def performTestsAndSaveResults(sizes, filename="./tests/fft_ifft_results.csv", real=[], imag=[], hardcoded=False):
+    import os
+    # Load previous results if the CSV file exists
+    existing_results = []
+    if os.path.exists(filename):
+        existing_results = loadResultsFromCSV(filename)
+        print(f"Loaded existing results from {filename}")
 
-# TESTING AND MAKING GRAPHS
+    # Gather tested sizes
+    tested_sizes = {result['size'] for result in existing_results}
 
+    # Identify sizes that need testing
+    sizes_to_test = [size for size in sizes if size not in tested_sizes]
+
+    if not sizes_to_test:
+        print("All sizes have already been tested. No new tests will be performed.")
+        return existing_results  # Return existing results if no new tests are needed
+
+    # Perform tests on remaining sizes
+    new_results = benchmark_different_sizes(sizes_to_test, real, imag, hardcoded)
+
+    # Combine existing results with new results
+    all_results = existing_results + new_results
+
+    # Save all results to CSV
+    saveResultsToCSV(all_results, filename)
+    print(f"Results saved to {filename}")
+
+    return all_results
 
 
