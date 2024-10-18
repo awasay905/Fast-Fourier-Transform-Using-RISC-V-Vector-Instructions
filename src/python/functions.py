@@ -1,7 +1,7 @@
 VEER_TEMP_FOLDER_PATH = './veer/tempFiles'
 VEER_FOLDER_PATH = './veer'
-TEST_TEMP_FOLDER_PATH = './tests/tempFiles'
-TEST_CODE_FOLDER_PATH = './tests'
+TEST_TEMP_FOLDER_PATH = './src/assemblyForPython/tempFiles'
+TEST_CODE_FOLDER_PATH = './src/assemblyForPython'
 
 # Formats given array to string for a readable format for assembly file
 def format_array_as_data_string(data, num_group_size = 4, num_per_line = 32):
@@ -497,7 +497,7 @@ def changeVectorSize(size):
 #Save FFT/IFFT benchmark results to a CSV file.
 #    :param results: List of dictionaries containing size and result data.
 #    :param filename: Name of the CSV file to save to.
-def saveResultsToCSV(results, filename="fft_results.csv"):
+def saveResultsToCSV(results, filename):
     import csv
     """
     
@@ -529,7 +529,7 @@ def saveResultsToCSV(results, filename="fft_results.csv"):
 #Load FFT/IFFT benchmark results from a CSV file.
 # :param filename: Name of the CSV file to load from.
 # :return: List of dictionaries containing size and result data.
-def loadResultsFromCSV(filename="fft_results.csv"):
+def loadResultsFromCSV(filename):
     import csv
     
     results = []
@@ -601,7 +601,7 @@ def benchmark_different_sizes(sizes,real = [], imag = [], hardcoded = False):
 #    :param real: Real part of the input array.
 #    :param imag: Imaginary part of the input array.
 #    :param hardcoded: Whether to use hardcoded values or random values.
-def performTestsAndSaveResults(sizes, filename="./tests/fft_ifft_results.csv", real=[], imag=[], hardcoded=False):
+def performTestsAndSaveResults(sizes, filename=f"{TEST_CODE_FOLDER_PATH}/fft_ifft_results.csv", real=[], imag=[], hardcoded=False):
     import os
     # Load previous results if the CSV file exists
     existing_results = []

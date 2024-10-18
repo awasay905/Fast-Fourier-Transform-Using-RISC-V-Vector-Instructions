@@ -8,34 +8,46 @@ It was made as a project for your course Computer Architecture and Assembly Lang
 
 - `docs/`: Contains files for project documentation.
 
-- `README.md`: Main project documentation file.
+    - `flow.md`: Working of the assembly FFT code
+    - `VEERGUIDE.md`:  Installation Guide for Veer Simulator
 
-- `results/`: Directory where benchmarking results are saved.
+
+- `results/`: Saves Benchmarking Results
+
 
 - `src/`: Contains the source code.
 
-- `FFT_V.s`: Vectorized implementation of FFT in RISC-V assembly. (`FFT_V2.s` includes runtime improvements).
+    - `assembly`: RISC-V assembly code
+        - `FFT_NV.s`: Non-vectorized implementation of FFT in RISC-V assembly. (`FFT_NV2.s` includes runtime improvements).
+        - `FFT_V.s` :  Vectorized implementation of FFT in RISC-V assembly. (`FFT_V2.s` includes runtime improvements).
 
-- `FFT_NV.s`: Non-vectorized implementation of FFT in RISC-V assembly. (`FFT_NV2.s` includes runtime improvements).
+    - `assemblyForPython`: RISC-V assembly code with empty data for use by python wrappers
+    
+    - `c`: C code for FFT/IFFT
+        - `fft.c`: FFT implementation in C using no complex/maths library for easy conversion to assembly
+    
+    - `python`: helpful python codes
 
-- `fft.c`: Main C code implementing FFT calculation without using complex number libraries.
+        - `BasicFFT.py`: Basic script that performs FFT using the provided wrapper functions. It is for easy FFT use.
 
-- `readVeerOutput.py`: Python script to convert hexadecimal values from Veer logs to floating-point numbers.
+        - `readVeerOutput.py`: COnverts HEX values from Veer logs to float using some sort of patterned loads to mark start/end
 
-- `tests/`: Contains code for use by Python wrappers, including both vectorized and non-vectorized FFT/IFFT versions.
+        - `functions.py`: A list of helper and wrapper functions written in python to call RISC-V FFT/IFFT and measure their execution time
 
-- `tools/`: Contains Python utility scripts.
-
-- `functions.py`: Python module with wrapper functions for using RISC-V FFT/IFFT.
-
-- `test.py`: Script to run FFT/IFFT on various sizes and methods for benchmarking speed.
+        - `__init__.py`: Empty file to convert this folder to python module for help in benchmarking
 
 - `veer/`: Contains necessary files for running the Veer simulator.
 
+    - `link.ld`: Linked Script for compiling
+    - `whisper.json`: Configuration file for Veer Simulator having settings to set vector size etc
+
+
+- `benchmark.py`: Script to run FFT/IFFT on various sizes and methods for benchmarking speed and runtime to save result to results folder.
+
+
 - `Makefile`: Script to compile and run simulations on the Veer simulator.
 
-- `script.py`: Python script that performs FFT using the provided wrapper functions.
-
+- `README.md`: Main project documentation file.
 
 ## Prerequisites
 
@@ -72,6 +84,13 @@ make all        (or make allNV for non-vectorized code)
 ```bash
 python3 readVeerOutput.py 
 ```
+
+## Alternate Way to Run
+1. Open the file `BasicFFT.pi` from the folder `src/python/` 
+2. Edit the values in real/temp and adjust array size
+3. Choose what to do (FFT/IFFT/vFFT/vIFFT)
+4. The python code calls the VeerSimulator via subprocess
+5. The result is returned in a tuple having the output, runtime, and cpu cycle count for veer
 ## Runtime
 The time required to run FFT normally is N * LogN where N is the number of input. With this vectorized version, each operation is done on VLEN (vector length/ amount of element in a vector) element altogether, resulting in N * LogN / VLEN time required. Benchmarking on the VeeR Simulator with VLEN of 8 resulted in almost 5 times less cycles in vectorized code compared to non-vectorized code.
 
@@ -79,7 +98,7 @@ The time required to run FFT normally is N * LogN where N is the number of input
 Contributions are welcome! Please feel free to submit a Pull Request or open an Issue.
 
 ## Future Plan/Improvment
-Although this is the basic FFT without much improvement, it can be made faster if a better version of sin/cos is implemented. Current implementation uses taylor series and takes about 300 cycle for VLEN sin/cos. 
+Although this is the basic FFT without much improvement, it can be made faster if a better version of sin/cos is implemented. Current implementation uses taylor series and takes about 100 cpu cycle for VLEN sin/cos. 
 
 ## Acknowledgments
 - Thanks to our instructors Dr Salman Zaffar and Dr Zain for guiding us

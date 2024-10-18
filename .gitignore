@@ -1,6 +1,9 @@
 fft_results.csv
-tests/tempFiles/*.txt
-tests/tempFiles/*.exe
-tests/tempFiles/*.hex
-tools/__pycache__/__init__.cpython-312.pyc
-tools/__pycache__/functions.cpython-312.pyc
+src/assemblyForPython/tempFiles/*.txt
+src/assemblyForPython/tempFiles/*.exe
+src/assemblyForPython/tempFiles/*.hex
+python/__pycache__/__init__.cpython-312.pyc
+python/__pycache__/functions.cpython-312.pyc
+src/assemblyForPython/tempFiles/a.txt
+src/python/__pycache__/__init__.cpython-312.pyc
+src/python/__pycache__/functions.cpython-312.pyc
