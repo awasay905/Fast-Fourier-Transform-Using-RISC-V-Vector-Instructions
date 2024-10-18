@@ -1,4 +1,4 @@
-from tools.functions import *
+from functions import *
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,12 +6,11 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
 # RUN FFT/IFFT ON DIFFERENT SIZES AND SAVE THE RESULTS
-results_csv = 'test_results random.csv' # File to save the results to
-sizes = [2 ** i for i in range(4, 15)]  # Define the sizes for testing. must be power of 2
+sizes = [2 ** i for i in range(2, 18)]  # Define the sizes for testing. must be power of 2
 #results = load_results_from_csv(results_csv, sizes)    # RN I do not save to file as i think it is causing precision issues
-results = benchmark_different_sizes(sizes)
-
-
+results = performTestsAndSaveResults(sizes)
+exit(0)
+#
 df = pd.DataFrame(results)
 # Make plots and save it to pdf
 with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:   

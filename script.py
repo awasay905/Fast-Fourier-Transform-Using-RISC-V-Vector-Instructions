@@ -1,8 +1,9 @@
 from tools.functions import *
 
-a = benchmark_different_sizes([2,4,8,16,32])
-print(a)
-saveResultsToCSV(a)
-a = loadResultsFromCSV(a)
-print(a)
+real = [0,1,2,3,4,5,6,7,8]
+imag = [0,1,2,3,4,5,6,7,8]
+size = 8
+
+result, cycles, time = vFFT2(real, imag, size)
+
 # TODO Make a gui 

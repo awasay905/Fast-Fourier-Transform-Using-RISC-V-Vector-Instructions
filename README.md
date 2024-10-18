@@ -1,24 +1,41 @@
 # Fast Fourier Transform using RISC-V Vector Instructions
 
-This project demonstrates the calculation of Fast Fourier Transform (FFT) as well as its Inverse (IFFT) using RISC-V vector instructions. The original code was adapted from StackOverflow (link given at the end), converted to C, and then modified to replace the complex class with real and imaginary part arrays for easier assembly conversion. The FFT code can be run on the Veer simulator on Ubuntu, and a Python script is provided to convert the output of Veer to human readable form. 
+This project demonstrates the calculation of Fast Fourier Transform (FFT) as well as its Inverse (IFFT) using RISC-V vector instructions. The original FFT code was adapted from StackOverflow (link given at the end), converted to C, and then modified to replace the complex class with real and imaginary part arrays for easier assembly conversion. The Vectorized FFT code can be run on the Veer simulator on Ubuntu, and a Python script is provided to convert the output of Veer to human readable form.
 
 It was made as a project for your course Computer Architecture and Assembly Language. A non-vectorized version of the code is also provided for comparision. 
 
 ## Project Structure
 
-- `fft.c`: The main C code implementing the FFT calculation using no complex library.
+- `docs/`: Contains files for project documentation.
 
-- `vectorizedFFT.s`: Vectorized Implementation of the FFT in RISC-V.
+- `README.md`: Main project documentation file.
 
-- `FFT.s`: Non-vectorized Implementation of the FFT in RISC-V.
+- `results/`: Directory where benchmarking results are saved.
 
-- `Makefile`: Makefile to compile and run the simulation on the Veer simulator.
+- `src/`: Contains the source code.
 
-- `readVeerOutput.py`: Python script to convert hex values from the log file to float.
+- `FFT_V.s`: Vectorized implementation of FFT in RISC-V assembly. (`FFT_V2.s` includes runtime improvements).
 
-- `README.md`: Project documentation.
+- `FFT_NV.s`: Non-vectorized implementation of FFT in RISC-V assembly. (`FFT_NV2.s` includes runtime improvements).
 
-- `VeerFiles`: Folder having files required for running on Veer
+- `fft.c`: Main C code implementing FFT calculation without using complex number libraries.
+
+- `readVeerOutput.py`: Python script to convert hexadecimal values from Veer logs to floating-point numbers.
+
+- `tests/`: Contains code for use by Python wrappers, including both vectorized and non-vectorized FFT/IFFT versions.
+
+- `tools/`: Contains Python utility scripts.
+
+- `functions.py`: Python module with wrapper functions for using RISC-V FFT/IFFT.
+
+- `test.py`: Script to run FFT/IFFT on various sizes and methods for benchmarking speed.
+
+- `veer/`: Contains necessary files for running the Veer simulator.
+
+- `Makefile`: Script to compile and run simulations on the Veer simulator.
+
+- `script.py`: Python script that performs FFT using the provided wrapper functions.
+
 
 ## Prerequisites
 
@@ -29,7 +46,7 @@ Before setting up and running the simulation, ensure you have the following prer
 - [VeeR-ISS RISC-V Simulator](https://github.com/chipsalliance/VeeR-ISS)
 - [Verilator](https://verilator.org/guide/latest/install.html) (Tested on Version 5.006)
 
-A guide for installing prerequisite is available [here](./VeerFiles/VEERGUIDE.md).
+A guide for installing prerequisite is available [here](./docs/VEERGUIDE.md).
 ## Simulation Instructions
 
 1. Clone this repository to your local machine:
