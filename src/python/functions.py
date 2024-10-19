@@ -620,4 +620,93 @@ def performTestsAndSaveResults(sizes, filename=f"{TEST_CODE_FOLDER_PATH}/fft_iff
     return all_results
 
 
+def flatten_results(results):
+    data = {
+        'size': [],
+        'npFFT_result': [],
+        'npFFT_cycles': [],
+        'npFFT_time': [],
+        'npIFFT_result': [],
+        'npIFFT_cycles': [],
+        'npIFFT_time': [],
+        'nFFT_result': [],
+        'nFFT_cycles': [],
+        'nFFT_time': [],
+        'nIFFT_result': [],
+        'nIFFT_cycles': [],
+        'nIFFT_time': [],
+        'nFFT2_result': [],
+        'nFFT2_cycles': [],
+        'nFFT2_time': [],
+        'nIFFT2_result': [],
+        'nIFFT2_cycles': [],
+        'nIFFT2_time': [],
+        'vFFT_result': [],
+        'vFFT_cycles': [],
+        'vFFT_time': [],
+        'vIFFT_result': [],
+        'vIFFT_cycles': [],
+        'vIFFT_time': [],
+        'vFFT2_result': [],
+        'vFFT2_cycles': [],
+        'vFFT2_time': [],
+        'vIFFT2_result': [],
+        'vIFFT2_cycles': [],
+        'vIFFT2_time': []
+    }
 
+# Flatten the data
+    for result in results:
+        data['size'].append(result['size'])
+        
+        # npFFT
+        data['npFFT_result'].append(result['npFFT']['result'])
+        data['npFFT_cycles'].append(result['npFFT']['cycles'])
+        data['npFFT_time'].append(result['npFFT']['time'])
+        
+        # npIFFT
+        data['npIFFT_result'].append(result['npIFFT']['result'])
+        data['npIFFT_cycles'].append(result['npIFFT']['cycles'])
+        data['npIFFT_time'].append(result['npIFFT']['time'])
+        
+        # nFFT
+        data['nFFT_result'].append(result['nFFT']['result'])
+        data['nFFT_cycles'].append(result['nFFT']['cycles'])
+        data['nFFT_time'].append(result['nFFT']['time'])
+        
+        # nIFFT
+        data['nIFFT_result'].append(result['nIFFT']['result'])
+        data['nIFFT_cycles'].append(result['nIFFT']['cycles'])
+        data['nIFFT_time'].append(result['nIFFT']['time'])
+        
+        # nFFT2
+        data['nFFT2_result'].append(result['nFFT2']['result'])
+        data['nFFT2_cycles'].append(result['nFFT2']['cycles'])
+        data['nFFT2_time'].append(result['nFFT2']['time'])
+        
+        # nIFFT2
+        data['nIFFT2_result'].append(result['nIFFT2']['result'])
+        data['nIFFT2_cycles'].append(result['nIFFT2']['cycles'])
+        data['nIFFT2_time'].append(result['nIFFT2']['time'])
+        
+        # vFFT
+        data['vFFT_result'].append(result['vFFT']['result'])
+        data['vFFT_cycles'].append(result['vFFT']['cycles'])
+        data['vFFT_time'].append(result['vFFT']['time'])
+        
+        # vIFFT
+        data['vIFFT_result'].append(result['vIFFT']['result'])
+        data['vIFFT_cycles'].append(result['vIFFT']['cycles'])
+        data['vIFFT_time'].append(result['vIFFT']['time'])
+        
+        # vFFT2
+        data['vFFT2_result'].append(result['vFFT2']['result'])
+        data['vFFT2_cycles'].append(result['vFFT2']['cycles'])
+        data['vFFT2_time'].append(result['vFFT2']['time'])
+        
+        # vIFFT2
+        data['vIFFT2_result'].append(result['vIFFT2']['result'])
+        data['vIFFT2_cycles'].append(result['vIFFT2']['cycles'])
+        data['vIFFT2_time'].append(result['vIFFT2']['time'])
+        
+    return(data)

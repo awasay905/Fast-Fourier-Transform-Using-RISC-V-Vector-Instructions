@@ -4,21 +4,66 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
+from datetime import datetime
+
 
 # RUN FFT/IFFT ON DIFFERENT SIZES AND SAVE THE RESULTS
-sizes = [2 ** i for i in range(2, 18)]  # Define the sizes for testing. must be power of 2
-#results = load_results_from_csv(results_csv, sizes)    # RN I do not save to file as i think it is causing precision issues
+sizes = [2 ** i for i in range(2, 20)]  # Define the sizes for testing. must be power of 2
 results = performTestsAndSaveResults(sizes)
-exit(0)
-#
+results = flatten_results(results)
+
+# Create the DataFrame
 df = pd.DataFrame(results)
-# Make plots and save it to pdf
-with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:   
+print(df['size'])
+# Create timestamp
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+"""
+this is how data looks like
+        'size': [],
+        'npFFT_result': [],
+        'npFFT_cycles': [],
+        'npFFT_time': [],
+        'npIFFT_result': [],
+        'npIFFT_cycles': [],
+        'npIFFT_time': [],
+        'nFFT_result': [],
+        'nFFT_cycles': [],
+        'nFFT_time': [],
+        'nIFFT_result': [],
+        'nIFFT_cycles': [],
+        'nIFFT_time': [],
+        'nFFT2_result': [],
+        'nFFT2_cycles': [],
+        'nFFT2_time': [],
+        'nIFFT2_result': [],
+        'nIFFT2_cycles': [],
+        'nIFFT2_time': [],
+        'vFFT_result': [],
+        'vFFT_cycles': [],
+        'vFFT_time': [],
+        'vIFFT_result': [],
+        'vIFFT_cycles': [],
+        'vIFFT_time': [],
+        'vFFT2_result': [],
+        'vFFT2_cycles': [],
+        'vFFT2_time': [],
+        'vIFFT2_result': [],
+        'vIFFT2_cycles': [],
+        'vIFFT2_time': []
+"""
+# Define folder and filename with timestamp
+analysis_report_folder = './results'
+report_filename = f"FFT_and_IFFT_Analysis_Report_{timestamp}.pdf"
+
+# Make plots and save to pdf
+with PdfPages(analysis_report_folder + report_filename) as pdf:
     
-    # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes
+    # Veer Instruction Cycle Count Differnce Between FFT and vFFT2 of Different input sizes
     plt.figure(figsize=(12, 6))
-    plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='D')
-    plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='x')
+    plt.plot(df['size'], df['nFFT_cycles'], label='FFT Cycles', marker='D')
+    plt.plot(df['size'], df['vFFT2_cycles'],label='vFFT Cycles', marker='x')
     plt.ylabel('VeeR Instruction Count')
     plt.xlabel('Input Size (log)')
     plt.xscale('log')
@@ -26,11 +71,11 @@ with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:
     plt.title("Instructions Count Difference Between FFT and vFFT")
     pdf.savefig()
     plt.close() 
-    
+   
     # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes with big O
     plt.figure(figsize=(12, 6))
-    plt.plot(df['size'], df['FFTcycles'], label='FFT Cycles', marker='D')
-    plt.plot(df['size'], df['vFFTcycles'], label='vFFT Cycles', marker='x')
+    plt.plot(df['size'], df['nFFT_cycles'], label='FFT Cycles', marker='D')
+    plt.plot(df['size'], df['vFFT2_cycles'], label='vFFT Cycles', marker='x')
     plt.plot(df['size'], pd.DataFrame([(i*i) for i in df['size']]), label='O(n*2)', marker='o')
     plt.plot(df['size'], pd.DataFrame([i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
     plt.ylabel('VeeR Instruction Count')
@@ -40,12 +85,11 @@ with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:
     plt.title("Instructions Count Difference Between FFT and vFFT With Big-O")
     pdf.savefig()
     plt.close()
-    
     # Runtime Differnce Between npFFT, FFT and vFFT of Different input sizes
     plt.figure(figsize=(12, 6))
-    plt.plot(df['size'], df['npFFTtime'], label='npFFT time', marker='.')
-    plt.plot(df['size'], df['FFTtime'], label='FFT time', marker='D')
-    plt.plot(df['size'], df['vFFTtime'], label='vFFT time', marker='x')
+    plt.plot(df['size'], df['npFFT_time'], label='npFFT time', marker='.')
+    plt.plot(df['size'], df['nFFT_time'], label='FFT time', marker='D')
+    plt.plot(df['size'], df['vFFT2_time'], label='vFFT time', marker='x')
     plt.ylabel('Run time in millisecond')
     plt.xlabel('Input Size (log)')
     plt.xscale('log')
@@ -56,8 +100,7 @@ with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:
     
     #   Improvement of vFFT over FFT of Different input sizes i.e ratio
     plt.figure(figsize=(12, 6))
-    plt.plot(df['size'], df['FFTtime']/df['vFFTtime'], label='vFFT Improvement', marker='x')
-    plt.plot(df['size'], df['IFFTtime']/df['vIFFTtime'], label='vIFFT Improvement', marker='o')
+    plt.plot(df['size'], df['nFFT_time']/df['vFFT2_time'], label='vFFT Improvement', marker='x')
     plt.ylabel('Ratio')
     plt.xlabel('Input Size (log)')
     plt.xscale('log')
@@ -68,8 +111,7 @@ with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:
     
     #   Improvement of vFFT over FFT of Different input sizes i.e ratio
     plt.figure(figsize=(12, 6))
-    plt.plot(df['size'], df['FFTtime']/df['vFFTtime'], label='vFFT Improvement', marker='x')
-    plt.plot(df['size'], df['IFFTtime']/df['vIFFTtime'], label='vIFFT Improvement', marker='o')
+    plt.plot(df['size'], df['nFFT_cycles']/df['vFFT2_cycles'], label='vFFT Improvement', marker='x')
     plt.ylabel('Ratio')
     plt.xlabel('Input Size (log)')
     plt.xscale('log')
@@ -77,6 +119,7 @@ with PdfPages('FFT_and_IFFT_Analysis_Report.pdf') as pdf:
     plt.title("vFFT cpu instructions improvement over FFTs")
     pdf.savefig()
     plt.close()
+    exit(0)
     
     # Show value difference per size
     # for idx, row in df.iterrows():
