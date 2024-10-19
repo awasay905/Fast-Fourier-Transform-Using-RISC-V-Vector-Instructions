@@ -422,30 +422,6 @@ def vFFT2(real, imag, array_size, deleteFiles = True):
 def vIFFT2(real, imag, array_size, deleteFiles = True):
     return run('vIFFT2', real, imag, array_size, deleteFiles)
 
-#  Helper function to perform FFT and IFFT with given functions and labels.
-#    Returns a dictionary containing the results.
-# def performFFT_IFFT(fft_func, ifft_func, label, real, imag, array_size):
-#     print(f"Performing {label} FFT for array of size {array_size}")
-#     fft_result, fft_cycles, fft_time = fft_func(real, imag, array_size)
-#     print("Done.")
-    
-#     print(f"Performing {label} IFFT for array of size {array_size}")
-#     ifft_result, ifft_cycles, ifft_time = ifft_func(fft_result.real, fft_result.imag, array_size)
-#     print("Done.")
-    
-#     return {
-#         'FFT': {
-#             'result': fft_result,
-#             'cycles': fft_cycles,
-#             'time': fft_time
-#         },
-#         'IFFT': {
-#             'result': ifft_result,
-#             'cycles': ifft_cycles,
-#             'time': ifft_time
-#         }
-#     }
-    
     
 # Performs FFT and IFFT on array of n size, of real and imag. if hardcoded if flase then random floats 
 # from -1000 to 1000 will be used
@@ -461,44 +437,44 @@ def compute_FFT_IFFT_with_benchmarks(array_size, real=[], imag=[], hardcoded=Fal
     # Dictionary to store results
     benchmark_results = {}
     
-    print("Performing npFFT for array of size {array_size}")
+    print(f"Performing npFFT for array of size {array_size}")
     npFFTresult, npFFTcycles, npFFTtime = npFFT(real, imag, array_size)
     print(f"Done. Took {npFFTtime} milliseconds")
     
-    print("Performing npIFFT for array of size {array_size}")
+    print(f"Performing npIFFT for array of size {array_size}")
     npIFFTresult, npIFFTcycles, npIFFTtime = npIFFT(npFFTresult.real, npFFTresult.imag, array_size)
     print(f"Done. Took {npIFFTtime} milliseconds")
     
-    print("Performing nFFT for array of size {array_size}")
+    print(f"Performing nFFT for array of size {array_size}")
     nFFTresult, nFFTcycles, nFFTtime = nFFT(real, imag, array_size)
     print(f"Done. Took {nFFTtime} milliseconds")
     
-    print("Performing nIFFT for array of size {array_size}")
+    print(f"Performing nIFFT for array of size {array_size}")
     nIFFTresult, nIFFTcycles, nIFFTtime = nIFFT(nFFTresult.real, nFFTresult.imag, array_size)
     print(f"Done. Took {nIFFTtime} milliseconds")
     
-    print("Performing nFFT2 for array of size {array_size}")
+    print(f"Performing nFFT2 for array of size {array_size}")
     nFFT2result, nFFT2cycles, nFFT2time = nFFT2(real, imag, array_size)
     print(f"Done. Took {nFFT2time} milliseconds")
     
-    print("Performing nIFFT2 for array of size {array_size}")
+    print(f"Performing nIFFT2 for array of size {array_size}")
     nIFFT2result, nIFFT2cycles, nIFFT2time = nIFFT2(nFFT2result.real, nFFT2result.imag, array_size)
     print(f"Done. Took {nIFFT2time} milliseconds")
     
     
-    print("Performing vFFT for array of size {array_size}")
+    print(f"Performing vFFT for array of size {array_size}")
     vFFTresult, vFFTcycles, vFFTtime = vFFT(real, imag, array_size)
     print(f"Done. Took {vFFTtime} milliseconds")
     
-    print("Performing vIFFT for array of size {array_size}")
+    print(f"Performing vIFFT for array of size {array_size}")
     vIFFTresult, vIFFTcycles, vIFFTtime = vIFFT(vFFTresult.real, vFFTresult.imag, array_size)
     print(f"Done. Took {vIFFTtime} milliseconds")
     
-    print("Performing vFFT2 for array of size {array_size}")
+    print(f"Performing vFFT2 for array of size {array_size}")
     vFFT2result, vFFT2cycles, vFFT2time = vFFT2(real, imag, array_size)
     print(f"Done. Took {vFFT2time} milliseconds")
     
-    print("Performing vIFFT2 for array of size {array_size}")
+    print(f"Performing vIFFT2 for array of size {array_size}")
     vIFFT2result, vIFFT2cycles, vIFFT2time = vIFFT2(vFFT2result.real, vFFT2result.imag, array_size)
     print(f"Done. Took {vIFFT2time} milliseconds")
     
@@ -585,148 +561,16 @@ def changeVectorSize(size):
             
     return
   
-# Function to save the results
-#Save FFT/IFFT benchmark results to a CSV file.
-#    :param results: List of dictionaries containing size and result data.
-#    :param filename: Name of the CSV file to save to.
-def saveResultsToCSV(results, filename):
-    import csv, numpy
-    # Flattening the nested dictionary into a row-friendly format
-    with open(filename, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        
-        # Writing the header
-        header = ['Size','Input', 
-                'npFFT Result', 'npFFT Cycles', 'npFFT Time',
-                'npIFFT Result', 'npIFFT Cycles', 'npIFFT Time',
-                'nFFT Result', 'nFFT Cycles', 'nFFT Time',
-                'nIFFT Result', 'nIFFT Cycles', 'nIFFT Time',
-                'nFFT2 Result', 'nFFT2 Cycles', 'nFFT2 Time',
-                'nIFFT2 Result', 'nIFFT2 Cycles', 'nIFFT2 Time',
-                  'vFFT Result', 'vFFT Cycles', 'vFFT Time',
-                  'vIFFT Result', 'vIFFT Cycles', 'vIFFT Time',
-                  'vFFT2 Result', 'vFFT2 Cycles', 'vFFT2 Time', 
-                  'vIFFT2 Result', 'vIFFT2 Cycles', 'vIFFT2 Time']
-        writer.writerow(header)
-        
-        # Writing the data
-        for result in results:
-            writer.writerow([
-                result['size'],
-                result['input'],
-                
-                result['npFFT']['result'],  # FFT result
-                result['npFFT']['cycles'],  # FFT cycles
-                result['npFFT']['time'],    # FFT time
-                result['npIFFT']['result'], # IFFT result
-                result['npIFFT']['cycles'], # IFFT cycles
-                result['npIFFT']['time'],   # IFFT time
-                
-                result['nFFT']['result'],   # FFT result
-                result['nFFT']['cycles'],   # FFT cycles
-                result['nFFT']['time'],     # FFT time
-                result['nIFFT']['result'],  # IFFT result
-                result['nIFFT']['cycles'],  # IFFT cycles
-                result['nIFFT']['time'],    # IFFT time
-                
-                result['nFFT2']['result'],   # FFT result
-                result['nFFT2']['cycles'],   # FFT cycles
-                result['nFFT2']['time'],     # FFT time
-                result['nIFFT2']['result'],  # IFFT result
-                result['nIFFT2']['cycles'],  # IFFT cycles
-                result['nIFFT2']['time'],    # IFFT time
-                
-                result['vFFT']['result'],   # FFT result
-                result['vFFT']['cycles'],   # FFT cycles
-                result['vFFT']['time'],     # FFT time
-                result['vIFFT']['result'],  # IFFT result
-                result['vIFFT']['cycles'],  # IFFT cycles
-                result['vIFFT']['time'],    # IFFT time
-               
-                result['vFFT2']['result'],  # FFT result
-                result['vFFT2']['cycles'],  # FFT cycles
-                result['vFFT2']['time'],    # FFT time
-                result['vIFFT2']['result'], # IFFT result
-                result['vIFFT2']['cycles'], # IFFT cycles
-                result['vIFFT2']['time']    # IFFT time
-            ])
-
-# Function to load results from the CSV
-#Load FFT/IFFT benchmark results from a CSV file.
-# :param filename: Name of the CSV file to load from.
-# :return: List of dictionaries containing size and result data.
-# Function to load results from a CSV file
-def loadResultsFromCSV(filename):
-    import csv
-    
-    # Dictionary to store benchmark results after loading from CSV
-    loaded_results = []
-    
-    with open(filename, mode='r') as file:
-        reader = csv.DictReader(file)
-        
-        # Read each row and reconstruct the benchmark results
-        for row in reader:
-            print(row)
-            result = {
-                'size': int(row['Size']),
-                'npFFT': {
-                    'result': complex(row['npFFT Result']),  # Convert string to complex
-                    'cycles': int(row['npFFT Cycles']),
-                    'time': float(row['npFFT Time']),
-                },
-                'npIFFT': {
-                    'result': complex(row['npIFFT Result']),
-                    'cycles': int(row['npIFFT Cycles']),
-                    'time': float(row['npIFFT Time']),
-                },
-                'nFFT': {
-                    'result': complex(row['nFFT Result']),
-                    'cycles': int(row['nFFT Cycles']),
-                    'time': float(row['nFFT Time']),
-                },
-                'nIFFT': {
-                    'result': complex(row['nIFFT Result']),
-                    'cycles': int(row['nIFFT Cycles']),
-                    'time': float(row['nIFFT Time']),
-                },
-                'nFFT2': {
-                    'result': complex(row['nFFT2 Result']),
-                    'cycles': int(row['nFFT2 Cycles']),
-                    'time': float(row['nFFT2 Time']),
-                },
-                'nIFFT2': {
-                    'result': complex(row['nIFFT2 Result']),
-                    'cycles': int(row['nIFFT2 Cycles']),
-                    'time': float(row['nIFFT2 Time']),
-                },
-                'vFFT': {
-                    'result': complex(row['vFFT Result']),
-                    'cycles': int(row['vFFT Cycles']),
-                    'time': float(row['vFFT Time']),
-                },
-                'vIFFT': {
-                    'result': complex(row['vIFFT Result']),
-                    'cycles': int(row['vIFFT Cycles']),
-                    'time': float(row['vIFFT Time']),
-                },
-                'vFFT2': {
-                    'result': complex(row['vFFT2 Result']),
-                    'cycles': int(row['vFFT2 Cycles']),
-                    'time': float(row['vFFT2 Time']),
-                },
-                'vIFFT2': {
-                    'result': complex(row['vIFFT2 Result']),
-                    'cycles': int(row['vIFFT2 Cycles']),
-                    'time': float(row['vIFFT2 Time']),
-                }
-            }
-            
-            loaded_results.append(result)
-    
-    return loaded_results
+import json
+def saveResultsToJSON(results, filename):
+    with open(filename, 'w') as f:
+        json.dump(results, f, indent=4, default=str)
 
 
+def loadResultsFromJSON(filename):
+    with open(filename, 'r') as f:
+        return json.load(f)
+    
 # RUNS FFT/IFFT on arrays of different sizes on dirrent real/imag array (pass array counraninf array) (if hardcodedgiven)). 
 # TODO custom array values are not implemented yet
 # Returns an array conatinign output of each test
@@ -745,12 +589,12 @@ def benchmark_different_sizes(sizes,real = [], imag = [], hardcoded = False):
 #    :param real: Real part of the input array.
 #    :param imag: Imaginary part of the input array.
 #    :param hardcoded: Whether to use hardcoded values or random values.
-def performTestsAndSaveResults(sizes, filename=f"{TEST_CODE_FOLDER_PATH}/fft_ifft_results.csv", real=[], imag=[], hardcoded=False):
+def performTestsAndSaveResults(sizes, filename=f"{TEST_CODE_FOLDER_PATH}/fft_ifft_results.json", real=[], imag=[], hardcoded=False):
     import os
     # Load previous results if the CSV file exists
     existing_results = []
     if os.path.exists(filename):
-        existing_results = loadResultsFromCSV(filename)
+        existing_results = loadResultsFromJSON(filename)
         print(f"Loaded existing results from {filename}")
 
     # Gather tested sizes
@@ -770,9 +614,10 @@ def performTestsAndSaveResults(sizes, filename=f"{TEST_CODE_FOLDER_PATH}/fft_iff
     all_results = existing_results + new_results
 
     # Save all results to CSV
-    saveResultsToCSV(all_results, filename)
+    saveResultsToJSON(all_results, filename)
     print(f"Results saved to {filename}")
 
     return all_results
+
 
 
