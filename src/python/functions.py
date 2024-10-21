@@ -1,7 +1,9 @@
+import numpy as np
 VEER_TEMP_FOLDER_PATH = './veer/tempFiles'
 VEER_FOLDER_PATH = './veer'
 TEST_TEMP_FOLDER_PATH = './src/assemblyForPython/tempFiles'
 TEST_CODE_FOLDER_PATH = './src/assemblyForPython'
+RESULT_FOLDER_PATH = './results/data'
 
 # Formats given array to string for a readable format for assembly file
 def format_array_as_data_string(data, num_group_size = 4, num_per_line = 32):
@@ -561,15 +563,71 @@ def changeVectorSize(size):
             
     return
   
+# Helper function to convert complex numpy arrays to lists
+def numpy_to_list(data):
+    if isinstance(data, np.ndarray):
+        return data.tolist()  # Convert numpy array to list
+    elif isinstance(data, complex):
+        return {'real': data.real, 'imag': data.imag}  # Handle complex numbers
+    elif isinstance(data, dict):
+        return {key: numpy_to_list(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [numpy_to_list(item) for item in data]
+    else:
+        return data
+    
+def list_to_numpy(data):
+    if isinstance(data, list):
+        return np.array(data)  # Convert lists back to numpy arrays
+    elif isinstance(data, dict) and 'real' in data and 'imag' in data:
+        return complex(data['real'], data['imag'])  # Convert back to complex
+    elif isinstance(data, dict):
+        return {key: list_to_numpy(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [list_to_numpy(item) for item in data]
+    else:
+        return data
+    
 import json
-def saveResultsToJSON(results, filename):
+import pickle
+import numpy as np
+
+def saveResults(results, filename):
+    def complex_encoder(obj):
+        if isinstance(obj, np.ndarray):  # Convert NumPy array to list
+            return obj.tolist()
+        if isinstance(obj, complex):  # Convert complex numbers to strings
+            return f"{obj.real}+{obj.imag}j"
+        return str(obj)  # Fallback for other non-serializable types
+
     with open(filename, 'w') as f:
-        json.dump(results, f, indent=4, default=str)
+        json.dump(results, f, indent=4, default=complex_encoder)
+   
+    with open(filename+'.pickle', 'wb') as f:
+        pickle.dump(results, f)
 
 
-def loadResultsFromJSON(filename):
-    with open(filename, 'r') as f:
-        return json.load(f)
+
+def loadResults(filename, format='pickle'):
+    if format == 'json':
+        def complex_decoder(dct):
+            for key, value in dct.items():
+                if isinstance(value, list):  # Check if it's a list (likely a NumPy array)
+                    dct[key] = np.array(value)
+                elif isinstance(value, str) and ('+' in value or '-' in value) and 'j' in value:
+                    try:
+                        dct[key] = complex(value.replace('j', 'j'))  # Convert string back to complex
+                    except ValueError:
+                        pass  # Skip non-complex strings
+            return dct
+        
+        with open(filename, 'r') as f:
+            return json.load(f, object_hook=complex_decoder)
+    elif format == 'pickle':
+        with open(filename+'.pickle', 'rb') as f:
+            return pickle.load(f)
+    else:
+        raise ValueError("Unsupported format. Use 'json' or 'pickle'.")
     
 # RUNS FFT/IFFT on arrays of different sizes on dirrent real/imag array (pass array counraninf array) (if hardcodedgiven)). 
 # TODO custom array values are not implemented yet
@@ -589,12 +647,12 @@ def benchmark_different_sizes(sizes,real = [], imag = [], hardcoded = False):
 #    :param real: Real part of the input array.
 #    :param imag: Imaginary part of the input array.
 #    :param hardcoded: Whether to use hardcoded values or random values.
-def performTestsAndSaveResults(sizes, filename=f"{TEST_CODE_FOLDER_PATH}/fft_ifft_results.json", real=[], imag=[], hardcoded=False):
+def performTestsAndSaveResults(sizes, filename=f"{RESULT_FOLDER_PATH}/fft_ifft_results.json", real=[], imag=[], hardcoded=False):
     import os
     # Load previous results if the CSV file exists
     existing_results = []
     if os.path.exists(filename):
-        existing_results = loadResultsFromJSON(filename)
+        existing_results = loadResults(filename)
         print(f"Loaded existing results from {filename}")
 
     # Gather tested sizes
@@ -614,15 +672,17 @@ def performTestsAndSaveResults(sizes, filename=f"{TEST_CODE_FOLDER_PATH}/fft_iff
     all_results = existing_results + new_results
 
     # Save all results to CSV
-    saveResultsToJSON(all_results, filename)
+    saveResults(all_results, filename)
     print(f"Results saved to {filename}")
 
     return all_results
 
 
 def flatten_results(results):
+    import numpy as np
     data = {
         'size': [],
+        'input': [],
         'npFFT_result': [],
         'npFFT_cycles': [],
         'npFFT_time': [],
@@ -658,54 +718,55 @@ def flatten_results(results):
 # Flatten the data
     for result in results:
         data['size'].append(result['size'])
+        data['input'].append(result['input'])
         
         # npFFT
-        data['npFFT_result'].append(result['npFFT']['result'])
+        data['npFFT_result'].append((result['npFFT']['result']))
         data['npFFT_cycles'].append(result['npFFT']['cycles'])
         data['npFFT_time'].append(result['npFFT']['time'])
         
         # npIFFT
-        data['npIFFT_result'].append(result['npIFFT']['result'])
+        data['npIFFT_result'].append((result['npIFFT']['result']))
         data['npIFFT_cycles'].append(result['npIFFT']['cycles'])
         data['npIFFT_time'].append(result['npIFFT']['time'])
         
         # nFFT
-        data['nFFT_result'].append(result['nFFT']['result'])
+        data['nFFT_result'].append((result['nFFT']['result']))
         data['nFFT_cycles'].append(result['nFFT']['cycles'])
         data['nFFT_time'].append(result['nFFT']['time'])
         
         # nIFFT
-        data['nIFFT_result'].append(result['nIFFT']['result'])
+        data['nIFFT_result'].append((result['nIFFT']['result']))
         data['nIFFT_cycles'].append(result['nIFFT']['cycles'])
         data['nIFFT_time'].append(result['nIFFT']['time'])
         
         # nFFT2
-        data['nFFT2_result'].append(result['nFFT2']['result'])
+        data['nFFT2_result'].append((result['nFFT2']['result']))
         data['nFFT2_cycles'].append(result['nFFT2']['cycles'])
         data['nFFT2_time'].append(result['nFFT2']['time'])
         
         # nIFFT2
-        data['nIFFT2_result'].append(result['nIFFT2']['result'])
+        data['nIFFT2_result'].append((result['nIFFT2']['result']))
         data['nIFFT2_cycles'].append(result['nIFFT2']['cycles'])
         data['nIFFT2_time'].append(result['nIFFT2']['time'])
         
         # vFFT
-        data['vFFT_result'].append(result['vFFT']['result'])
+        data['vFFT_result'].append((result['vFFT']['result']))
         data['vFFT_cycles'].append(result['vFFT']['cycles'])
         data['vFFT_time'].append(result['vFFT']['time'])
         
         # vIFFT
-        data['vIFFT_result'].append(result['vIFFT']['result'])
+        data['vIFFT_result'].append((result['vIFFT']['result']))
         data['vIFFT_cycles'].append(result['vIFFT']['cycles'])
         data['vIFFT_time'].append(result['vIFFT']['time'])
         
         # vFFT2
-        data['vFFT2_result'].append(result['vFFT2']['result'])
+        data['vFFT2_result'].append((result['vFFT2']['result']))
         data['vFFT2_cycles'].append(result['vFFT2']['cycles'])
         data['vFFT2_time'].append(result['vFFT2']['time'])
         
         # vIFFT2
-        data['vIFFT2_result'].append(result['vIFFT2']['result'])
+        data['vIFFT2_result'].append((result['vIFFT2']['result']))
         data['vIFFT2_cycles'].append(result['vIFFT2']['cycles'])
         data['vIFFT2_time'].append(result['vIFFT2']['time'])
         
