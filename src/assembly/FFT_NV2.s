@@ -41,12 +41,29 @@ reverse:                            # Reverse the binary digits of the number. T
     lw ra, 0(sp)
     addi sp, sp, 4
 
-    vbrev.v v29, v29                # Reverses all bits
-
-    li t0, 32                       # 32 is the size of element
-    sub t0, t0, a0                  # t0 = number of bits we need to reverse
-
-    vsrl.vx v29, v29, t0
+    addi t0, zero, 1                # j = 1
+    add t1, zero, zero              # p = 0
+    
+    forloopreverse:
+    bgt t0, a0, forloopreverseend
+    
+    sub t2, a0, t0
+    addi t3, zero, 1
+    sll t3, t3, t2
+    and t3, a1, t3
+    beq t3, zero, elses3
+    ifs3:
+    addi t4, t0, -1
+    addi t5, zero, 1
+    sll t5, t5, t4
+    or t1, t1, t5
+    elses3:
+    
+    addi t0, t0, 1
+    j forloopreverse
+    
+    forloopreverseend:
+    add a0, t1, zero                # return p
     
     jr ra
     
