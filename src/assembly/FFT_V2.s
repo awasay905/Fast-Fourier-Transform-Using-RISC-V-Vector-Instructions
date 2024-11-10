@@ -33,15 +33,10 @@ initHelperVector:
 # Input:  a0 = N
 # Output: a0 = log2(N)
 logInt:
-    mv t0, a0                       # t0 = N (loop counter)
-    li a0, 0                        # a0 = result
-    logLoop:
-    beqz t0, logLoopEnd
-    srli t0, t0, 1
-    addi a0, a0, 1
-    j logLoop
-    logLoopEnd:
-    addi a0, a0, -1                 # Adjust result
+    clz a0, a0            # Count leading zeros of rs1, store result in rd
+    li t0, 31              # Load 31 (32-bit word size - 1) into temporary register t0
+    sub a0, t0, a0         # Subtract clz result from 31 to get log2(n)
+    
     ret
     
 # Bit-reverse the elements of a vector
@@ -527,12 +522,12 @@ _finish:
     real: .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
-          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,420
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
 
     imag: .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
-          .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,6969
+          .float 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
           
     .set dataSize, 128          # THIS IS N
 

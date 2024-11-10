@@ -17,18 +17,11 @@ main:                               # Main Function to Call FFT/IFFT
 
 
 logint:                             # Returns log(N) base 2 where N=a0
-    add t0, a0, zero                # k = N
-    add a0, zero, zero              # i = 0
-
-    logloop:
-    beq t0, zero, logloopend
-    srai t0, t0, 1
-    addi a0, a0, 1
-    j logloop
-    logloopend:
-
-    addi a0, a0, -1  
-    jr ra
+    clz a0, a0            # Count leading zeros of rs1, store result in rd
+    li t0, 31              # Load 31 (32-bit word size - 1) into temporary register t0
+    sub a0, t0, a0         # Subtract clz result from 31 to get log2(n)
+    
+    ret
  
     
 reverse:                            # Reverse the binary digits of the number. Takes input N (in a0) and n (in a1).
