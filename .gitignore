@@ -8,3 +8,4 @@ src/assemblyForPython/tempFiles/a.txt
 src/python/__pycache__/__init__.cpython-312.pyc
 src/python/__pycache__/functions.cpython-312.pyc
 veer/tempFiles/*
+test

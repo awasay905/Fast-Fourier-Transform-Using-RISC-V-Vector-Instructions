@@ -3,6 +3,7 @@
     "enable_zfh" : "true",
     "enable_zba" : "true",
     "enable_zbb" : "true",
+    "enable_zbs" : "true",
     "abi_names" : "true",
     
     "csr" : {

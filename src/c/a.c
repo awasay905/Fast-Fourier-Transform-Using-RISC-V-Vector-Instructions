@@ -13,9 +13,8 @@ void print_binary(uint32_t num, int bits) {
 // Function to increment a number in reverse using __builtin_clz
 uint32_t increment_reversed(uint32_t num, int bits) {
 
-    // Step 1: Create a mask where the first `bits` are 0 and the rest are 1
-    uint32_t mask = ~((1U << bits) - 1);
-
+    // Step 1: Create a mask where the first `bits` are 0 and the rest are 1 maskold =~((1U << bits) - 1);
+    uint32_t mask = -1 << bits;
     // Step 2: OR the number with the mask
     num = num | mask;
 

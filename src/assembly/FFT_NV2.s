@@ -23,7 +23,35 @@ logint:                             # Returns log(N) base 2 where N=a0
     
     jr ra
  
-    
+increment_reversed:
+    # Step 1: Create mask where first `bits` are 0 and the rest are 1
+    li      t0, -1               # Load -1 into t0
+    sll     t0, t0, a1          # Shift -1 left by `bits` (a1) to create -1U << bits
+
+    # Step 2: OR the number with the mask
+    or      a0, a0, t0          # num = num | mask
+
+    # Step 4: Count leading zeros in the negated number
+    not     t0, a0              # t0 = ~num
+    clz     t1, t0              # t1 = __builtin_clz(~num), count leading zeros
+
+    # Step 5: Calculate the position of the first 0-bit from the left
+    li      t0, 31              # Load 31 into t0 (number of bits in uint32_t)
+    sub     t1, t0, t1          # t1 = 32 - leading_zeros -1. . t1 = first_zero_index - 1
+
+    # Step 7: Set the bit at the first_zero_index - 1
+    bset a0, a0, t1
+
+    # Step 8: Clear all bits to the left of the first_zero_index
+    addi    t1, t1, 1           # first_zero_index
+    li      t0, -1              # Load -1 into t0
+    sll     t0, t0, t1          # t0 = -1U << (first_zero_index)
+    andn     a0, a0, t0          # num &= ~((-1U << (first_zero_index)))
+
+    # Return the modified num
+    ret
+
+
 reverse:                            # Reverse the binary digits of the number. Takes input N (in a0) and n (in a1).
     # Save return address
     addi    sp, sp, -4             # Allocate stack space
@@ -261,30 +289,28 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     
     la s0, real_temp
     la s1, imag_temp
+
+    addi    sp, sp, -8             # Allocate stack space
+    sw      ra, 0(sp)              # Save return address
+    sw      a0, 4(sp)
+    mv a0, a2
+    call logint             # Call logint, result in a0
+    mv a7, a0               # a7 has number of bits i.e logN
+
+
+
+    lw      ra, 0(sp)              # Restore return address
+    lw      a0, 4(sp)
+    addi    sp, sp, 8              # Deallocate stack space
+
     
     addi t0, zero, 0 # i
+    addi a6, zero, 0 # rev(i)
     
     forordina:
     bge t0, a2, endforordina
-    
-    addi sp, sp, -16
-    sw a0, 0(sp)
-    sw a1, 4(sp)
-    sw ra, 8(sp)
-    sw t0, 12(sp) 
-    
-    add a0, a2, zero # a0 = N
-    add a1, t0, zero # a1 = i 
-    
-    call reverse
-    # now a0 have reverse index, save it to t1
-    add t1, a0, zero
-    
-    lw a0, 0(sp)
-    lw a1, 4(sp)
-    lw ra, 8(sp)
-    lw t0, 12(sp)
-    addi sp, sp, 16
+
+    mv t1, a6   # t1 = rev
     
     slli t2, t0, 2  # i*4
     slli t3, t1, 2  # rev_index*4
@@ -300,8 +326,32 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     fsw ft1, 0(t5)
     
     addi t0, t0, 1
+
+    addi sp, sp, -16
+    sw a0, 0(sp)
+    sw a1, 4(sp)
+    sw ra, 8(sp)
+    sw t0, 12(sp) 
+    
+    add a0, a6, zero # a0 = rev(i)
+    add a1, a7, zero # a1 =  big
+    
+    call increment_reversed
+
+    # now a0 have reverse index, save it to t1
+    mv t1, a0
+    mv a6, a0
+    
+    lw a0, 0(sp)
+    lw a1, 4(sp)
+    lw ra, 8(sp)
+    lw t0, 12(sp)
+    addi sp, sp, 16
+
+
     j forordina
     endforordina:
+
     
     addi t1, zero, 0  # j
     forordina2:
