@@ -17,14 +17,6 @@ main:                               # Main Function to Call FFT/IFFT
     j _finish                       # End program
 
 
-logint:                             # Returns log(N) base 2 where N=a0
-    clz a0, a0            # Count leading zeros of rs1, store result in rd
-    li t0, 31              # Load 31 (32-bit word size - 1) into temporary register t0
-    sub a0, t0, a0         # Subtract clz result from 31 to get log2(n)
-    
-    jr ra
- 
-
 setlogN:                             # Sets logsize to LogN. assume N in a2
     clz t0, a2            # Count leading zeros of rs1, store result in t0
     li t1, 31              # Load 31 (32-bit word size - 1) into temporary register t1
