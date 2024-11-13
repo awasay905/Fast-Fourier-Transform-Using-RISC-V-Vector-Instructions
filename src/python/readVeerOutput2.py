@@ -15,10 +15,10 @@ def process_file(file_name, start_index, end_index):
         
         # Process lines within the specified range
         for i in range(start_index, end_index):
-            if "flw" in lines[i]:
+            if "c.flw" in lines[i]:
                 words = lines[i].split()
                 if len(words) > 1:
-                    index_of_cflw = words.index("flw")
+                    index_of_cflw = words.index("c.flw")
                     if index_of_cflw > 0:
                         if save_to_real:
                             real.append(words[index_of_cflw - 1])
@@ -92,7 +92,7 @@ def read_file_reverse_and_process(file_path):
     return start_index, end_index
 
 if __name__ == "__main__":
-    file_path = "./veer/tempFiles/logV2.txt"  # Replace with your file path
+    file_path = "./veer/tempFiles/logNV2.txt"  # Replace with your file path
     start, end = read_file_reverse_and_process(file_path)
     realVal, imagVal = process_file(file_path, start, end)
     realVal = hex_to_float(realVal)

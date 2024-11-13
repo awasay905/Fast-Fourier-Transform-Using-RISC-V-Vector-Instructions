@@ -25,14 +25,14 @@ logint:                             # Returns log(N) base 2 where N=a0
  
 increment_reversed:
     # Step 1: Create mask where first `bits` are 0 and the rest are 1
-    li      t0, -1               # Load -1 into t0
-    sll     t0, t0, a1          # Shift -1 left by `bits` (a1) to create -1U << bits
+    li      t2, -1               # Load -1 into t0
+    sll     t0, t2, a7          # Shift -1 left by `bits` (a7) to create -1U << bits
 
     # Step 2: OR the number with the mask
-    or      a0, a0, t0          # num = num | mask
+    or      a6, a6, t0          # num = num | mask
 
     # Step 4: Count leading zeros in the negated number
-    not     t0, a0              # t0 = ~num
+    not     t0, a6              # t0 = ~num
     clz     t1, t0              # t1 = __builtin_clz(~num), count leading zeros
 
     # Step 5: Calculate the position of the first 0-bit from the left
@@ -40,13 +40,12 @@ increment_reversed:
     sub     t1, t0, t1          # t1 = 32 - leading_zeros -1. . t1 = first_zero_index - 1
 
     # Step 7: Set the bit at the first_zero_index - 1
-    bset a0, a0, t1
+    bset a6, a6, t1
 
     # Step 8: Clear all bits to the left of the first_zero_index
     addi    t1, t1, 1           # first_zero_index
-    li      t0, -1              # Load -1 into t0
-    sll     t0, t0, t1          # t0 = -1U << (first_zero_index)
-    andn     a0, a0, t0          # num &= ~((-1U << (first_zero_index)))
+    sll     t0, t2, t1          # t0 = -1U << (first_zero_index)
+    andn     a6, a6, t0          # num &= ~((-1U << (first_zero_index)))
 
     # Return the modified num
     ret
@@ -280,40 +279,26 @@ myCos:          # Returns cos(x) where x=fa0
 
 
 ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
-    addi sp, sp, -20
-    sw s0, 0(sp)
-    sw s1, 4(sp)
-    sw a0, 8(sp)
-    sw a1, 12(sp)
-    sw ra, 16(sp)
+    addi sp, sp, -12
+    sw ra, 0(sp)
+    sw a0, 4(sp)
+    sw a1, 8(sp)
     
     la s0, real_temp
     la s1, imag_temp
+    lw a7, logsize
 
-    addi    sp, sp, -8             # Allocate stack space
-    sw      ra, 0(sp)              # Save return address
-    sw      a0, 4(sp)
-    mv a0, a2
-    call logint             # Call logint, result in a0
-    mv a7, a0               # a7 has number of bits i.e logN
-
-
-
-    lw      ra, 0(sp)              # Restore return address
-    lw      a0, 4(sp)
-    addi    sp, sp, 8              # Deallocate stack space
-
-    
-    addi t0, zero, 0 # i
-    addi a6, zero, 0 # rev(i)
+    li t6,  0 # i
+    li a6,  0 # rev(i)
     
     forordina:
-    bge t0, a2, endforordina
+    bge t6, a2, endforordina
 
-    mv t1, a6   # t1 = rev
-    
-    slli t2, t0, 2  # i*4
-    slli t3, t1, 2  # rev_index*4
+    call reverse  # is saved in to a6. Do not save ra. it is saved in parent funciton
+
+
+    slli t2, t6, 2  # i*4
+    slli t3, a6, 2  # rev_index*4
     
     add t4, a0, t3  # real array index rev_index
     add t5, s0, t2  # real_temp array i
@@ -325,30 +310,8 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     flw ft1, 0(t4)
     fsw ft1, 0(t5)
     
-    addi t0, t0, 1
 
-    addi sp, sp, -16
-    sw a0, 0(sp)
-    sw a1, 4(sp)
-    sw ra, 8(sp)
-    sw t0, 12(sp) 
-    
-    add a0, a6, zero # a0 = rev(i)
-    add a1, a7, zero # a1 =  big
-    
-    call increment_reversed
-
-    # now a0 have reverse index, save it to t1
-    mv t1, a0
-    mv a6, a0
-    
-    lw a0, 0(sp)
-    lw a1, 4(sp)
-    lw ra, 8(sp)
-    lw t0, 12(sp)
-    addi sp, sp, 16
-
-
+    addi t6, t6, 1
     j forordina
     endforordina:
 
@@ -371,12 +334,10 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     j forordina2
     endforordina2:
     
-    lw s0, 0(sp)
-    lw s1, 4(sp)
-    lw a0, 8(sp)
-    lw a1, 12(sp)
-    lw ra, 16(sp)
-    addi sp, sp, 20
+    lw ra, 0(sp)
+    lw a0, 4(sp)
+    lw a1, 8(sp)
+    addi sp, sp, 12
 
     jr ra
 
@@ -455,23 +416,7 @@ transform:
     srli s3, a2, 1  # s3 = a = N/2
     addi t0, zero, 0  # t0 = j = 0
     
-    # for loop  need logint(N)
-    addi sp, sp, -12
-    sw ra, 0(sp)
-    sw a0, 4(sp)
-    sw t0, 8(sp)
-    
-    #call here 
-    add a0, zero, a2
-    call logint
-    # now a0 have logInt, transfer it to s4
-    add s4, a0, zero
-    
-    lw ra, 0(sp)
-    lw a0, 4(sp)
-    lw t0, 8(sp)
-    addi sp, sp, 12
-    ## call end, s4 have logint(N)
+    lw s4, logsize 
     transformfor1:
     bge t0, s4, endtransformfor1
    
@@ -562,39 +507,27 @@ transform:
     
     
 FFT: # takes input real a0, imag a1, N a2
-    addi sp, sp, -16
-    sw a0, 0(sp)
-    sw a1, 4(sp)
-    sw a2, 8(sp)
-    sw ra, 12(sp)
+    addi sp, sp, -4
+    sw ra, 0(sp)
     
-    addi a3, zero, 1 # 0 is false, no inverse
+    li a3, 1 # 0 is false, no inverse
     call transform
     
-    lw a0, 0(sp)
-    lw a1, 4(sp)
-    lw a2, 8(sp)
-    lw ra, 12(sp)
-    addi sp, sp, 16
+    lw ra, 0(sp)
+    addi sp, sp, 4
     
     jr ra
     
 
 IFFT: # takes input real a0, imag a1, N a2
-    addi sp, sp, -16
-    sw a0, 0(sp)
-    sw a1, 4(sp)
-    sw a2, 8(sp)
-    sw ra, 12(sp)
+    addi sp, sp, -4
+    sw ra, 0(sp)
     
-    addi a3, zero, -1 # 1 is true so inverse
+    li a3, -1 # 1 is true so inverse
     call transform
     
-    lw a0, 0(sp)
-    lw a1, 4(sp)
-    lw a2, 8(sp)
-    lw ra, 12(sp)
-    addi sp, sp, 16
+    lw ra, 0(sp)
+    addi sp, sp, 4
     
     addi t0, zero, 0 # i = 0
     forloopifft:
@@ -726,6 +659,7 @@ _finish:
     .set halfDataSize, dataSize/2 
     size: .word dataSize
     step: .float 1.0
+    logsize: .word 0
 
     real_temp: 
         .rept dataSize
