@@ -153,19 +153,20 @@ mySin:                              # Returns sin(x) where x=fa0
 
 myCos:          # Returns cos(x) where x=fa0
     # Range Reduction to [0, pi/2] for accuracy
+    fmv.s fa4, fa0 
     li t4, 1 # t4 = 1 = sign
     # Load constants
     la t0, NEG_HALF_PI
     flw ft0, 0(t0) # ft0 = neg_halfPI
 
-    # Compare if x (fa0) < -halfpi (ft0)
-    flt.s t0, fa0, ft0 # t0 = fa0 < ft0
+    # Compare if x (fa4) < -halfpi (ft0)
+    flt.s t0, fa4, ft0 # t0 = fa4 < ft0
     bnez t0 , lessThanneghalfPIcos 
     
-    # Compare x (fa0) > halfpi (ft0)
+    # Compare x (fa4) > halfpi (ft0)
     la t0, HALF_PI
     flw ft0, 0(t0) # ft0 = halfPI
-    fle.s t0, fa0, ft0 # checks if x <= halfpi, reverse condition
+    fle.s t0, fa4, ft0 # checks if x <= halfpi, reverse condition
     beqz t0, moreThanhalfPIcos # if false, go to if blok
     j doneRangeReductioncos # ff true, we will skip 
 
@@ -173,23 +174,23 @@ myCos:          # Returns cos(x) where x=fa0
     lessThanneghalfPIcos:         # If block for X < -Half_PI
     la t0, NEG_PI
     flw ft1, 0(t0)  # ft1 = -PI
-    fsub.s fa0, ft1, fa0 # ft1 = -PI -x
+    fsub.s fa4, ft1, fa4 # ft1 = -PI -x
     li t4, -1 # sign = -1
     j doneRangeReductioncos
 
     moreThanhalfPIcos:         # If block for x > Half PI
     la t0, PI
     flw ft1, 0(t0)      # ft1 = PI
-    fsub.s fa0, ft1, fa0    # x = PI - x
+    fsub.s fa4, ft1, fa4    # x = PI - x
     li t4, -1 # sign = -1
     j doneRangeReductioncos
 
     doneRangeReductioncos:
     
-    fmul.s ft0, fa0, fa0 # ft0 = x2 = x*x
+    fmul.s ft0, fa4, fa4 # ft0 = x2 = x*x
     la t0, ONE
     flw ft1, 0(t0)  # ft1 = term = 1
-    fmv.s ft2, ft1 # ft2 = sum = 1
+    fmv.s fa1, ft1 # fa1 = sum = 1
     fmv.s ft3, ft1 # ft3 =  faotiraln = 1.0
     
     la t0, TERMS
@@ -219,7 +220,7 @@ myCos:          # Returns cos(x) where x=fa0
     fdiv.s ft4, ft1, ft3
 
     # sum =sum +  next_term;
-    fadd.s ft2, ft2, ft4
+    fadd.s fa1, fa1, ft4
    
     # LOop stuff
     addi t1, t1, 1 # i ++
@@ -227,10 +228,9 @@ myCos:          # Returns cos(x) where x=fa0
     cosforend:
 
     fcvt.s.w ft4, t4 # convert sign to float
-    fmul.s ft2, ft2, ft4 # mul sum by sign
-    fmv.s fa0, ft2 # return sum(ft2)
+    fmul.s fa1, fa1, ft4 # mul sum by sign
 
-    jr ra
+    jr ra   # return in fa1
 
 
 ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
@@ -322,48 +322,40 @@ transform:
     fcvt.s.w fa7, a2            # fa7 = N
     fdiv.s fa3, fa3, fa7 # fa3 = (inverse)*-2*PI/N
 
+    # save ra outisde loop to improve performance
+    addi sp, sp, -8
+    sw ra, 0(sp)
+
     sincosfor:
     bge a6, s3, sincosforend
     
-    fcvt.s.w fa6, a6 # fa6 = i
+    fcvt.s.w fa6, a6        # fa6 = i convert i to float to use in sin/cos
     fmul.s fa0, fa3, fa6    # fa0 is mulvalue
     
-    # now call myCos but save fa0 first
-    addi sp, sp, -8
-    sw ra, 0(sp)
-    fsw fa0, 4(sp)
+    call myCos          # Now fa1 has myCos
+    fsw fa1, 0(s0)      # save output to wreal
     
-    call myCos          # Now fa0 has myCos
-    fmv.s fs4, fa0 # fs4 = mycos
+    call mySin               # Now fa0 has mySin .no need to save fa0 this time, because it will not be used
+    fsw fa0, 0(s1)          # save output to wreal
     
-    lw ra, 0(sp)
-    flw fa0, 4(sp)
-    addi sp, sp, 8
-    
-    # now call mySin but no need to save fa0 this time, because it will not be used
-    addi sp, sp, -4
-    sw ra, 0(sp)
-    
-    call mySin               # Now fa0 has mySin
-    fmv.s fs5, fa0 # fs5 = mysin
-    
-    lw ra, 0(sp)
-    addi sp, sp, 4
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    ## NOW JUST SAVE WORD TO W_real I
-    ## FIRST MAKE OFFSET i*4
-    slli a7, a6, 2  # a7 = i*4
-    add a7, a7, s0 # W_real address
-    fsw fs4, 0(a7)
-    
-    slli a7, a6, 2  # a7 = i*4
-    add a7, a7, s1 # W_imag address
-    fsw fs5, 0(a7)
-    
+    addi s0, s0, 4 # increment addreess
+    addi s1, s1, 4 # increment addreess
+
     addi a6, a6, 1  # i++
     j sincosfor
     sincosforend:
+
+    lw ra, 0(sp)
+    addi sp, sp, 8
+
+    ########
+    #Instead of creating offest and adding it to base address or wreal and wimag
+    # just keep incrementing them by 4 (word size)
+    # and after loop end restore them
+    la s0, W_real
+    la s1, W_imag
+    
     
     ###########################
     
