@@ -297,57 +297,47 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
     jr ra
 
 
-transform:
- # it receives base address of real[] a0, imag[] a1, and an int N a2, inverse flag in a3
-    addi sp, sp, -4
+ 
+transform:      # it receives base address of real[] a0, imag[] a1, and an int N a2, inverse flag in a3
+    addi sp, sp, -4   # save ra to stack. only once because it is safe?
     sw ra, 0(sp)
 
     call ordina
-
-    lw ra, 0(sp)
-    addi sp, sp, 4
     
     la s0, W_real
     la s1, W_imag
     
-    # call to cos and sin in loop
     addi a6, zero, 0            # a6 = i = 0
+    fcvt.s.w fa6, a6        # fa6 = i convert i to float to use in sin/cos
+    li s3, 1
+    fcvt.s.w fa5, s3        # createa a floating 1 to keep adding to i. used to avoid converting i to float in loop
     srli s3, a2, 1              # s3 = N/2
     
     # Calculating (inverse)*-2*PI/N
     la a7, NEG_TWO_PI
     flw fa3, 0(a7)              # fa3 = -2*PI
-    fcvt.s.w fa7, a3            # put inverse (-1) in fa7
-    fmul.s fa3, fa3, fa7        # fa3 = (inverse)*-2*PI
-    fcvt.s.w fa7, a2            # fa7 = N
-    fdiv.s fa3, fa3, fa7 # fa3 = (inverse)*-2*PI/N
-
-    # save ra outisde loop to improve performance
-    addi sp, sp, -8
-    sw ra, 0(sp)
+    mul a7, a2, a3              # a7 = (inverse)*N
+    fcvt.s.w fa7, a7            # fa7 = (inverse)*N
+    fdiv.s fa3, fa3, fa7        # fa3 = (inverse)*-2*PI/N
 
     sincosfor:
     bge a6, s3, sincosforend
     
-    fcvt.s.w fa6, a6        # fa6 = i convert i to float to use in sin/cos
     fmul.s fa0, fa3, fa6    # fa0 is mulvalue
-    
-    call myCos          # Now fa1 has myCos
+
+    call myCos          # Now fa1 has myCos . RA is not saved because it is saved once in this function
     fsw fa1, 0(s0)      # save output to wreal
     
-    call mySin               # Now fa0 has mySin .no need to save fa0 this time, because it will not be used
+    call mySin               # Now fa0 has mySin 
     fsw fa0, 0(s1)          # save output to wreal
-    
 
     addi s0, s0, 4 # increment addreess
     addi s1, s1, 4 # increment addreess
 
     addi a6, a6, 1  # i++
+    fadd.s fa6, fa6, fa5    # floating i increment
     j sincosfor
     sincosforend:
-
-    lw ra, 0(sp)
-    addi sp, sp, 8
 
     ########
     #Instead of creating offest and adding it to base address or wreal and wimag
@@ -355,9 +345,6 @@ transform:
     # and after loop end restore them
     la s0, W_real
     la s1, W_imag
-    
-    
-    ###########################
     
     addi s2, zero, 1  # s2 = n = 1
     srli s3, a2, 1  # s3 = a = N/2
@@ -373,69 +360,68 @@ transform:
     bge t1, a2, transformfor2end
     
     and t2, t1, s2 # t2 = i AND n
-    # xori t2, t2, -1 # t2 = !t2
     bne t2, zero, transformelse
     transformif:
+
+    # s7        real[i+n]
+    # s8        imag[i+n]
+    # s9        real[i]
+    # s10       imag[i]
+
     slli t3, t1, 2 #  i*4 offeset
-    add t4, a0, t3 # real base + offset
-    flw ft0, 0(t4)
-    add t4, a1, t3 # imag base + offset
-    flw ft1, 0(t4)
+    add s9, a0, t3 # real base + offset
+    flw ft0, 0(s9)  # real[i]
+    add s10, a1, t3 # imag base + offset
+    flw ft1, 0(s10)  # imag[i]
     
     mul t4, t1, s3 # i * a
     mul t5, s2, s3 # n * a
     rem t4, t4, t5 # k = t4 % t5
     
     slli t4, t4, 2 # offset, k * 4
-    
+
     add t5, s0, t4 # W_real
-    flw ft2, 0(t5)
+    flw ft2, 0(t5)  # w-real[k]
     add t5, s1, t4  # W_imag
-    flw ft3, 0(t5)
+    flw ft3, 0(t5) #w_imag[k]
     
     
     add t5, t1, s2 # i + n
     slli t5, t5, 2 # offset
-    # now load real[i+n] and image[i+n]
-    add t6, t5, a0
-    flw ft4, 0(t6)  # real[i+n
-    add t6, t5, a1
-    flw ft5, 0(t6)  # imag[i+n]
-    
-    fmul.s ft6, ft2, ft4 # W_real*real(i+n)
+    add s7, t5, a0
+    flw ft4, 0(s7)  # real[i+n]
+    add s8, t5, a1
+    flw ft5, 0(s8)  # imag[i+n]
+
+    # ft0 real[i]
+    # ft1 imag[i]
+    # ft2 wreal[k]
+    # ft3 wimag[k]
+    # ft4 real[i+n]
+    # ft5 imag[i+n]
+
     fmul.s ft7, ft3, ft5 #  W_imag*imag(i+n)
-    fsub.s fs1, ft6, ft7 #  W_real*real(i+n) - W_imag*imag(i+n)
-    
-    fmul.s ft6, ft2, ft5 # W_real*imag(i+n)
+    fmsub.s fs1, ft2, ft4, ft7   # #  W_real*real(i+n) - W_imag*imag(i+n)
+
     fmul.s ft7, ft3, ft4 #  W_imag*real(i+n)
-    fadd.s fs2, ft6, ft7 #  W_real*imag(i+n) + W_imag*real(i+n)
-    
+    fmadd.s fs2, ft2, ft5, ft7 #  W_real*imag(i+n) + W_imag*real(i+n)
+
+    # s7        real[i+n]
+    # s8        imag[i+n]
+    # s9        real[i]
+    # s10       imag[i]
+
     fadd.s fs3, ft0, fs1 # save to real [i]
-    
-    slli s8, t1, 2 # i*4
-    add s9, s8, a0 # real base + offset = real[i]
     fsw fs3, 0(s9) # real[i] = fs3 = ft0+fs1 = temp_real + temp1_real
     
     fadd.s fs3, ft1, fs2 # save to imag [i]
-    
-    slli s8, t1, 2 # i*4
-    add s9, s8, a1 # imag base + offset = imag[i]
-    fsw fs3, 0(s9) # imag[i] = fs3 = ft1+fs2 = temp__img + temp1_img
-    
+    fsw fs3, 0(s10) # imag[i] = fs3 = ft1+fs2 = temp__img + temp1_img
     
     fsub.s fs3, ft0, fs1 # save to real [i+n]
-    
-    add a7, t1, s2 # i + n
-    slli s8, a7, 2 # (i+n)*4
-    add s9, s8, a0 # real base + offset = real[i+n]
-    fsw fs3, 0(s9) # real[i+n] = fs3 = ft0-fs1 = temp_real - temp1_real
+    fsw fs3, 0(s7) # real[i+n] = fs3 = ft0-fs1 = temp_real - temp1_real
     
     fsub.s fs3, ft1, fs2 # save to imag [i+n]
-    
-    add a7, t1, s2 # i + n
-    slli s8, a7, 2 # (i+n)*4
-    add s9, s8, a1 # real base + offset = real[i+n]
-    fsw fs3, 0(s9) # imag[i+n] = fs3 = ft1-fs2 = temp_real - temp1_real
+    fsw fs3, 0(s8) # imag[i+n] = fs3 = ft1-fs2 = temp_real - temp1_real
     
     transformelse:
     
@@ -450,6 +436,10 @@ transform:
     addi t0, t0, 1
     j transformfor1
     endtransformfor1:
+
+
+    lw ra, 0(sp)
+    addi sp, sp, 4
     jr ra
     
     
