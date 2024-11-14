@@ -76,161 +76,104 @@ reverse:                            # Reverse the binary digits of the number. T
     ret                            # Return with result in a0
     
 
+preload_constants:
+    # Load addresses of constants into registers
+    la      t0, half_pi_hi          # Load address of half_pi_hi
+    flw     fs0, 0(t0)             # Load value into fs0
+    la      t0, half_pi_lo          # Load address of half_pi_lo
+    flw     fs1, 0(t0)             # Load value into fs1
+    la      t0, const_2_pi          # Load address of const_2_pi
+    flw     fs2, 0(t0)             # Load value into fs2
+    la      t0, const_12582912      # Load address of const_12582912
+    flw     fs3, 0(t0)             # Load value into fs3
 
-mySin:                              # Returns sin(x) where x=fa0
-    # Range Reduction to [0, pi/2] for accuracy
+    # Load cosine coefficients
+    la      t0, cos_coeff_0         # Load address of cos_coeff_0
+    flw     fs4, 0(t0)             # Load value into fs4
+    la      t0, cos_coeff_1         # Load address of cos_coeff_1
+    flw     fs5, 0(t0)             # Load value into fs5
+    la      t0, cos_coeff_2         # Load address of cos_coeff_2
+    flw     fs6, 0(t0)             # Load value into fs6
+    la      t0, cos_coeff_3         # Load address of cos_coeff_3
+    flw     fs7, 0(t0)             # Load value into fs7
+    la      t0, cos_coeff_4         # Load address of cos_coeff_4
+    flw     fs8, 0(t0)             # Load value into fs8
 
-    # Compare if x(fa0) < NEG_HALF_PI(ft0)
-    la t0, NEG_HALF_PI              # Load constants
-    flw ft0, 0(t0)                  # ft0 = NEG_HALF_PI
-    flt.s t0, fa0, ft0              # t0 = fa0 < ft0
-    bnez t0 , lessThanhalfPI        # Result is 1 if true (not equal to zero)
+    # Load sine coefficients
+    la      t0, sin_coeff_0         # Load address of sin_coeff_0
+    flw     fs9, 0(t0)             # Load value into fs9
+    la      t0, sin_coeff_1         # Load address of sin_coeff_1
+    flw     fs10, 0(t0)            # Load value into fs10
+    la      t0, sin_coeff_2         # Load address of sin_coeff_2
+    flw     fs11, 0(t0)            # Load value into fs11
+    la      t0, sin_coeff_3         # Load address of sin_coeff_3
+    flw     ft11, 0(t0)            # Load value into ft11
+
+    ret
+
+sin_cos_approx:
+    # Input: fa0 = a
+    # Output: fa0 = sin, fa1 = cos
+
+    # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
+    fmadd.s ft5, fa0, fs2, fs3
+    fsub.s ft5, ft5, fs3
+
+    # a = fmaf(j, -half_pi_hi, a)
+    fnmsub.s   ft6, ft5, fs0, fa0     # a = a - j * half_pi_hi
+
+    # a = fmaf(j, -half_pi_lo, a)
+    fnmsub.s   ft6, ft5, fs1, ft6     # a = a - j * half_pi_lo
+
+    # Compute i = (int) j and i = i + 1
+    fcvt.w.s t0, ft5                # Convert j to integer in t0
+    addi    t1, t0, 1              # ic = i + 1
     
-    # Compare if x(fa0) > HALF_PI(ft0)
-    la t0, HALF_PI                  # Load constants
-    flw ft0, 0(t0)                  # ft0 = NEG_HALF_PI
-    fle.s t0, fa0, ft0              #  checking x <= halfpi, reverse condition
-    beqz t0, moreThanhalfPI         # if false, go to if blok
-    j doneRangeReduction            # ff true, we will skip 
 
-    lessThanhalfPI:                 # if block for x < NEG_HALF_PI
-    la t0, NEG_PI
-    flw ft1, 0(t0)                  # ft1 = NEG_PI
-    fsub.s fa0, ft1, fa0            # fa0 = -PI -x
-    j doneRangeReduction
+    # Compute sa = a * a
+    fmul.s  ft7, ft6, ft6          # ft1 = a * a (sa)
 
-    moreThanhalfPI:                 # if block for x > HALF_PI
-    la t0, PI
-    flw ft1, 0(t0)                  # ft1 = PI
-    fsub.s fa0, ft1, fa0            # fa0 = PI - x
-    j doneRangeReduction
+    # Approximate cosine on [-π/4, +π/4] using polynomial approximation
+    # c = 2.44677067e-5
+    fmadd.s   fa2, fs4, ft7, fs5     # c = c * sa + -1.38877297e-3
+    fmadd.s   fa2, fa2, ft7, fs6     # c = c * sa + 4.16666567e-2
+    fmadd.s   fa2, fa2, ft7, fs7     # c = c * sa + -0.5
+    fmadd.s   fa0, fa2, ft7, fs8     # c = c * sa + 1.0
 
-    doneRangeReduction:
-    fmul.s ft0, fa0, fa0            # ft0 = x2 = x*x
-    fmv.s ft1, fa0                  # ft1 = term = x
-    fmv.s ft2, fa0                  # ft2 = sum = x
-    la t0, ONE
-    flw ft3, 0(t0)                  # ft3 = factorail = 1.0
+    # Approximate sine on [-π/4, +π/4] using polynomial approximation
+    fmadd.s   fa4, fs9, ft7, fs10     # s = s * sa + -1.98559923e-4
+    fmadd.s   fa4, fa4, ft7, fs11     # s = s * sa + 8.33338592e-3
+    fmadd.s   fa4, fa4, ft7, ft11     # s = s * sa + -0.166666672
+    fmul.s ft9, ft6, ft7            # t = a * sa
+    fmadd.s   fa1, fa4, ft9, ft6     # s = s * a
+
+    #t0 is for sin . fa4. i
+    #t1 is for cos . fa2. ic
+
+    # r = (i & 1) ? c : s;
+    andi    t5, t0, 1              # t0 = i & 1
+    beqz    t5, ifsincos1        # If i & 1 == 0, jump to ifsincos1
+    j       adjust_sign            # Jump to adjust_sign
+
+ifsincos1:
+    fmv.s fa4, fa0
+    fmv.s fa0, fa1
+    fmv.s   fa1, fa4
+
+adjust_sign:
+    andi    t0, t0, 2              # t0 = i & 2
+    beqz    t0, sign1done           # If i & 2 == 0, skip sign flip
+    fneg.s  fa0, fa0               # r = -r
     
-    la t0, TERMS
-    lw t4, 0(t0)                    # t4 = TERMS for taylors
-    li t1, 1                        # t1 = i = 1
-    sinfor:
-    bgt t1, t4, sinforend
-    
-    #START HERE
-    #factorial =factorial * (2*i) * (2*i + 1);
-    #Multipli i by 2
-    li t0, 2 # t0 = 2
-    mul t2, t0, t1 # t2 = 2*i
-    li t0, 1 # t0 = 1
-    add t3, t2, t0 # t3 = (2*i) + 1
-    mul t2, t2,  t3 # t2 = (2*i) * (2*i + 1)
-    # now convert to float
-    fcvt.s.w ft4, t2    # now ft4 =  (2*i) * (2*i + 1). t2, t3 free to use
-    fmul.s ft3, ft3, ft4 # facortila done, ft4  free
+sign1done:
 
-    # term =term * -x2; //negative x2
-    ###fneg.s ft4, ft0 # ft4 = -x2
-    fmul.s ft1,  ft1, ft0 # term = term * (-x2)
-    fneg.s ft1, ft1
+    andi t1, t1, 2
+    beqz t1, sign2done
+    fneg.s fa1, fa1
 
-    # float next_term = term / factorial; ft4 is free to use dont forget
-    fdiv.s ft4, ft1, ft3
+sign2done:
 
-    # sum =sum +  next_term;
-    fadd.s ft2, ft2, ft4
-   
-    # LOop stuff
-    addi t1, t1, 1 # i ++
-    j sinfor
-    sinforend:
-    
-    fmv.s fa0, ft2 # return sum(ft2)
-
-    jr ra
-
-
-myCos:          # Returns cos(x) where x=fa0
-    # Range Reduction to [0, pi/2] for accuracy
-    fmv.s fa4, fa0 
-    li t4, 1 # t4 = 1 = sign
-    # Load constants
-    la t0, NEG_HALF_PI
-    flw ft0, 0(t0) # ft0 = neg_halfPI
-
-    # Compare if x (fa4) < -halfpi (ft0)
-    flt.s t0, fa4, ft0 # t0 = fa4 < ft0
-    bnez t0 , lessThanneghalfPIcos 
-    
-    # Compare x (fa4) > halfpi (ft0)
-    la t0, HALF_PI
-    flw ft0, 0(t0) # ft0 = halfPI
-    fle.s t0, fa4, ft0 # checks if x <= halfpi, reverse condition
-    beqz t0, moreThanhalfPIcos # if false, go to if blok
-    j doneRangeReductioncos # ff true, we will skip 
-
-
-    lessThanneghalfPIcos:         # If block for X < -Half_PI
-    la t0, NEG_PI
-    flw ft1, 0(t0)  # ft1 = -PI
-    fsub.s fa4, ft1, fa4 # ft1 = -PI -x
-    li t4, -1 # sign = -1
-    j doneRangeReductioncos
-
-    moreThanhalfPIcos:         # If block for x > Half PI
-    la t0, PI
-    flw ft1, 0(t0)      # ft1 = PI
-    fsub.s fa4, ft1, fa4    # x = PI - x
-    li t4, -1 # sign = -1
-    j doneRangeReductioncos
-
-    doneRangeReductioncos:
-    
-    fmul.s ft0, fa4, fa4 # ft0 = x2 = x*x
-    la t0, ONE
-    flw ft1, 0(t0)  # ft1 = term = 1
-    fmv.s fa1, ft1 # fa1 = sum = 1
-    fmv.s ft3, ft1 # ft3 =  faotiraln = 1.0
-    
-    la t0, TERMS
-    lw t5, 0(t0)   # t5 = TERMS for taylors
-    li t1, 1 # t1 = i = 1
-    cosfor:
-    bgt t1, t5, cosforend
-    
-    #START HERE
-    #factorial =factorial * (2*i) * (2*i - 1);
-    #Multipli i by 2
-    li t0, 2 # t0 = 2
-    mul t2, t0, t1 # t2 = 2*i
-    li t0, 1 # t0 = 1
-    sub t3, t2, t0 # t3 = (2*i) - 1
-    mul t2, t2,  t3 # t2 = (2*i) * (2*i - 1)
-    # now convert to float
-    fcvt.s.w ft4, t2    # now ft4 =  (2*i) * (2*i - 1). t2, t3 free to use
-    fmul.s ft3, ft3, ft4 # facortila done, ft4  free
-
-    # term =term * -x2; //negative x2
-    ###fneg.s ft4, ft0 # ft4 = -x2
-    fmul.s ft1,  ft1, ft0 # term = term * (-x2)
-    fneg.s ft1, ft1
-
-    # float next_term = term / factorial; ft4 is free to use dont forget
-    fdiv.s ft4, ft1, ft3
-
-    # sum =sum +  next_term;
-    fadd.s fa1, fa1, ft4
-   
-    # LOop stuff
-    addi t1, t1, 1 # i ++
-    j cosfor
-    cosforend:
-
-    fcvt.s.w ft4, t4 # convert sign to float
-    fmul.s fa1, fa1, ft4 # mul sum by sign
-
-    jr ra   # return in fa1
+    ret
 
 
 ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
@@ -320,15 +263,15 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     fcvt.s.w fa7, a7            # fa7 = (inverse)*N
     fdiv.s fa3, fa3, fa7        # fa3 = (inverse)*-2*PI/N
 
+    call preload_constants
+
     sincosfor:
     bge a6, s3, sincosforend
     
     fmul.s fa0, fa3, fa6    # fa0 is mulvalue
 
-    call myCos          # Now fa1 has myCos . RA is not saved because it is saved once in this function
+    call sin_cos_approx          # Now fa1 has myCos . RA is not saved because it is saved once in this function
     fsw fa1, 0(s0)      # save output to wreal
-    
-    call mySin               # Now fa0 has mySin 
     fsw fa0, 0(s1)          # save output to wreal
 
     addi s0, s0, 4 # increment addreess
@@ -362,11 +305,6 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     and t2, t1, s2 # t2 = i AND n
     bne t2, zero, transformelse
     transformif:
-
-    # s7        real[i+n]
-    # s8        imag[i+n]
-    # s9        real[i]
-    # s10       imag[i]
 
     slli t3, t1, 2 #  i*4 offeset
     add s9, a0, t3 # real base + offset
@@ -441,14 +379,24 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     lw ra, 0(sp)
     addi sp, sp, 4
     jr ra
+   
     
-    
-FFT: # takes input real a0, imag a1, N a2
+# FFT:
+#   Performs the FFT on real and imaginary inputs.
+# Inputs:
+#   a0 = real array address
+#   a1 = imaginary array address
+#   a2 = size (N)
+# Output:
+#   In-place modification of arrays (a0, a1).
+# Clobbers:
+#   a3    
+FFT:                                       
     addi sp, sp, -4
     sw ra, 0(sp)
     
-    li a3, 1 # 0 is false, no inverse
-    call transform
+    li a3, 1                   # Set a3 to 1 (indicates non-inverse FFT)
+    call transform             # Call the 'transform' function (performs FFT)
     
     lw ra, 0(sp)
     addi sp, sp, 4
@@ -456,6 +404,16 @@ FFT: # takes input real a0, imag a1, N a2
     jr ra
     
 
+# IFFT:
+#   Performs the IFFT on real and imaginary inputs.
+# Inputs:
+#   a0 = real array address
+#   a1 = imaginary array address
+#   a2 = size (N)
+# Output:
+#   In-place modification of arrays (a0, a1).
+# Clobbers:
+#   a3    
 IFFT: # takes input real a0, imag a1, N a2
     addi sp, sp, -4
     sw ra, 0(sp)
@@ -467,24 +425,22 @@ IFFT: # takes input real a0, imag a1, N a2
     addi sp, sp, 4
     
     addi t0, zero, 0 # i = 0
+    fcvt.s.w ft3, a2 # N is in ft3
+
     forloopifft:
     bge t0, a2, endforloopifft
-    slli t1, t0, 2  # offset
     # lets do real first
-    add t2, a0, t1 # real base a0 + offest t1
-    flw ft2, 0(t2)
-    fcvt.s.w ft3, a2 # N is in ft3
+    flw ft2, 0(a0)
     fdiv.s ft2, ft2, ft3 # div by N
-    fsw ft2, 0(t2)
+    fsw ft2, 0(a0)
     
     # now do imag
-    add t2, a1, t1 # imag base a0 + offest t1
-    flw ft2, 0(t2)
-    fcvt.s.w ft3, a2 # N is in ft3
+    flw ft2, 0(a1)
     fdiv.s ft2, ft2, ft3 # div by N
-    fsw ft2, 0(t2)
+    fsw ft2, 0(a1)
     
-    
+    addi a0, a0, 4  # increment address by word size
+    addi a1, a1, 4
     addi t0, t0, 1
     j forloopifft
     
@@ -626,3 +582,17 @@ _finish:
     NEG_HALF_PI: .float -1.57079632679489661923
     ONE: .float 1
     TERMS: .word 12
+
+    half_pi_hi:    .float 1.57079637e+0  # π/2 high part
+    half_pi_lo:    .float -4.37113883e-8 # π/2 low part
+    const_2_pi:    .float 6.36619747e-1  # 2/π
+    const_12582912: .float 12582912.0    # 1.5 * 2^23
+    cos_coeff_0:   .float 2.44677067e-5  # Coefficient for cosine
+    cos_coeff_1:   .float -1.38877297e-3
+    cos_coeff_2:   .float 4.16666567e-2
+    cos_coeff_3:   .float -5.00000000e-1
+    cos_coeff_4:   .float 1.00000000e+0
+    sin_coeff_0:   .float 2.86567956e-6  # Coefficient for sine
+    sin_coeff_1:   .float -1.98559923e-4
+    sin_coeff_2:   .float 8.33338592e-3
+    sin_coeff_3:   .float -1.66666672e-1

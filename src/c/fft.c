@@ -226,9 +226,177 @@ void testSineCosine(int N) {
     printf("  Max Error Difference (New vs Old Cos): %1.18f\n", fabsf(max_error_new_cos - max_error_old_cos));
     printf("\n");
 }
+// Function to compute sin(x) using Taylor series
+float sin_approx(float a) {
+  
+  const float half_pi_hi =  1.57079637e+0f; //  0x1.921fb6p+0
+    const float half_pi_lo = -4.37113883e-8f; // -0x1.777a5cp-25
+    float c, j, r, s, sa, t;
+    int i;
+
+    /* subtract closest multiple of pi/2 giving reduced argument and quadrant */
+    j = fmaf (a, 6.36619747e-1f, 12582912.f) - 12582912.f; // 2/pi, 1.5 * 2**23
+    a = fmaf (j, -half_pi_hi, a);
+    a = fmaf (j, -half_pi_lo, a);
+
+    /* phase shift of pi/2 (one quadrant) for cosine */
+    i = (int)j;
+    //i = i + 1;
+
+    sa = a * a;
+    /* select sine approximation or cosine approximation based on quadrant */
+    if (i & 1){ 
+    /* Approximate cosine on [-PI/4,+PI/4] with maximum error of 0.87444 ulp */
+    c =               2.44677067e-5f;  //  0x1.9a8000p-16
+    c = fmaf (c, sa, -1.38877297e-3f); // -0x1.6c0efap-10
+    c = fmaf (c, sa,  4.16666567e-2f); //  0x1.555550p-5
+    c = fmaf (c, sa, -5.00000000e-1f); // -0x1.000000p-1
+    r= fmaf (c, sa,  1.00000000e+0f); //  1.00000000p+0
+
+    } else {
+    /* Approximate sine on [-PI/4,+PI/4] with maximum error of 0.64196 ulp */
+    s =               2.86567956e-6f;  //  0x1.80a000p-19
+    s = fmaf (s, sa, -1.98559923e-4f); // -0x1.a0690cp-13
+    s = fmaf (s, sa,  8.33338592e-3f); //  0x1.111182p-7
+    s = fmaf (s, sa, -1.66666672e-1f); // -0x1.555556p-3
+    t = a * sa;
+    r = fmaf (s, t, a);
+    }
+    /* adjust sign based on quadrant */
+    r = (i & 2) ? (0.0f - r) : r;
+
+    return r;
+}
+
+// Function to compute cos(x) using Taylor series
+float cos_approx(float a) {
+  
+  const float half_pi_hi =  1.57079637e+0f; //  0x1.921fb6p+0
+    const float half_pi_lo = -4.37113883e-8f; // -0x1.777a5cp-25
+    float c, j, r, s, sa, t;
+    int i;
+
+    /* subtract closest multiple of pi/2 giving reduced argument and quadrant */
+    j = fmaf (a, 6.36619747e-1f, 12582912.f) - 12582912.f; // 2/pi, 1.5 * 2**23
+    a = fmaf (j, -half_pi_hi, a);
+    a = fmaf (j, -half_pi_lo, a);
+
+    /* phase shift of pi/2 (one quadrant) for cosine */
+    i = (int)j;
+    i = i + 1;
+
+    sa = a * a;
+    /* select sine approximation or cosine approximation based on quadrant */
+
+     if (i & 1){ 
+    /* Approximate cosine on [-PI/4,+PI/4] with maximum error of 0.87444 ulp */
+    c =               2.44677067e-5f;  //  0x1.9a8000p-16
+    c = fmaf (c, sa, -1.38877297e-3f); // -0x1.6c0efap-10
+    c = fmaf (c, sa,  4.16666567e-2f); //  0x1.555550p-5
+    c = fmaf (c, sa, -5.00000000e-1f); // -0x1.000000p-1
+    r= fmaf (c, sa,  1.00000000e+0f); //  1.00000000p+0
+
+    } else {
+    /* Approximate sine on [-PI/4,+PI/4] with maximum error of 0.64196 ulp */
+    s =               2.86567956e-6f;  //  0x1.80a000p-19
+    s = fmaf (s, sa, -1.98559923e-4f); // -0x1.a0690cp-13
+    s = fmaf (s, sa,  8.33338592e-3f); //  0x1.111182p-7
+    s = fmaf (s, sa, -1.66666672e-1f); // -0x1.555556p-3
+    t = a * sa;
+    r = fmaf (s, t, a);
+    }
+    /* adjust sign based on quadrant */
+    r = (i & 2) ? (0.0f - r) : r;
+
+    return r;
+}
+
+float* sin_cos_approx(float a) {
+    static float result[2];
+  
+    const float half_pi_hi =  1.57079637e+0f; //  0x1.921fb6p+0
+    const float half_pi_lo = -4.37113883e-8f; // -0x1.777a5cp-25
+    float c, j, rc, rs, s, sa, t;
+    int i, ic; //i for sin, ic for cos
+
+    /* subtract closest multiple of pi/2 giving reduced argument and quadrant */
+    j = fmaf (a, 6.36619747e-1f, 12582912.f) - 12582912.f; // 2/pi, 1.5 * 2**23
+    a = fmaf (j, -half_pi_hi, a);
+    a = fmaf (j, -half_pi_lo, a);
+
+    /* phase shift of pi/2 (one quadrant) for cosine */
+    i = (int)j;
+    ic = i + 1;
+
+    sa = a * a;
+    /* select sine approximation or cosine approximation based on quadrant */
+
+    
+    /* Approximate cosine on [-PI/4,+PI/4] with maximum error of 0.87444 ulp */
+    c =               2.44677067e-5f;  //  0x1.9a8000p-16
+    c = fmaf (c, sa, -1.38877297e-3f); // -0x1.6c0efap-10
+    c = fmaf (c, sa,  4.16666567e-2f); //  0x1.555550p-5
+    c = fmaf (c, sa, -5.00000000e-1f); // -0x1.000000p-1
+    c= fmaf (c, sa,  1.00000000e+0f); //  1.00000000p+0
+
+    
+    /* Approximate sine on [-PI/4,+PI/4] with maximum error of 0.64196 ulp */
+    s =               2.86567956e-6f;  //  0x1.80a000p-19
+    s = fmaf (s, sa, -1.98559923e-4f); // -0x1.a0690cp-13
+    s = fmaf (s, sa,  8.33338592e-3f); //  0x1.111182p-7
+    s = fmaf (s, sa, -1.66666672e-1f); // -0x1.555556p-3
+    t = a * sa;
+    s = fmaf (s, t, a);
+
+    /* select sine approximation or cosine approximation based on quadrant */
+    // if (i & 1) is tru then (ic & 1) is false because ic = i + 1
+
+    if (i & 1) {
+      rs = c;
+      rc = s;
+    } else {
+      rs = s;
+      rc = c;
+    }
+  
+
+    /* adjust sign based on quadrant */
+    rs = (i & 2) ? (0.0f - rs) : rs;
+    rc = (ic & 2) ? (0.0f - rc) : rc;
+
+    result[0] = rs;
+    result[1] = rc;
+
+    return result;
+}
+
 
 int main()
 {
+  int inverse = 0;  // Set to 1 for inverse
+  float err = 0;
+  int N = 1<<25;
+    for (int i = 0; i < N/2; i++) {
+        // Calculate mulValue
+        float mulValue = -2.0 * PI * i / N;
+        if (inverse) {
+            mulValue *= -1;
+        }
+
+        // Calculate sin and cos using Taylor series
+        float* r = sin_cos_approx(mulValue);
+        float sin_taylor = r[0];
+        float cos_taylor = r[1];
+
+        // Calculate sin and cos using standard library functions
+        float sin_lib = sin(mulValue);
+        float cos_lib = cos(mulValue);
+
+        // Compare results
+        err += fabs(cos_taylor - cos_lib);
+    }
+    printf("Summed error: %.16f\n", err );
+    return 0;
   int n = 8; // array size
     float d = 1;  // step size = 1
     float real[MAX] = {1, 2, 3, 4, 5, 6, 7, 8};
