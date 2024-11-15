@@ -4,27 +4,44 @@
 .global _start
 _start:
 
-main:                               # Main Function to Call FFT/IFFT
-    la a0, real                     # a0 points to real[]
-    la a1, imag                     # a1 points to imag[]
-    lw a2, size                    # a2 has size of real/imag arrays  
+main:                               
+    lw a0, size                     # Load size of real/imag arrays into a0
+    call setlogN                    # Compute and store log2(size) for shared use by other functions
 
-    call setlogN                    # Sets logN in memory because many functions need it
-    call FFT                        # Apply FFT on the arrays
-    call IFFT                       # Apply IFFT on the arrays
-    
-	call print                      # Writes arrays values to register for logging
-    j _finish                       # End program
+    la a0, real                     # Load address of real[] into a0
+    la a1, imag                     # Load address of imag[] into a1
+    lw a2, size                     # Load size of real/imag arrays into a2
+    call FFT                        # Perform FFT on real[] and imag[] arrays
+
+    la a0, real                     # Load address of real[] into a0
+    la a1, imag                     # Load address of imag[] into a1
+    lw a2, size                     # Load size of real/imag arrays into a2
+    call IFFT                       # Perform IFFT on real[] and imag[] arrays
+
+    la a0, real                     # Load address of real[] into a0
+    la a1, imag                     # Load address of imag[] into a1
+    lw a2, size                     # Load size of real/imag arrays into a2
+    call print                      # Log the values of the arrays for debugging or display
+    j _finish                       # Jump to program finish/exit
 
 
-setlogN:                             # Sets logsize to LogN. assume N in a2
-    clz t0, a2            # Count leading zeros of rs1, store result in t0
-    li t1, 31              # Load 31 (32-bit word size - 1) into temporary register t1
-    sub t1, t1, t0         # Subtract clz result from 31 to get log2(n)
+
+# Function: setlogN
+# Computes log2(N) for a 32-bit unsigned integer in a0 and stores it in `logsize` in memory.
+# Inputs:
+#   - a0: 32-bit unsigned integer N
+# Outputs:
+#   - None. Result is saved in memory at 'logsize'
+# Clobbers: t0, t1
+setlogN:
+    clz t0, a0                      # Count leading zeros. Helps in quick log2
+    li t1, 31              
+    sub t1, t1, t0                  # Subtract clz result from 31 to get log2
     la t0, logsize
-    sw t1, 0(t0)
+    sw t1, 0(t0)                    # Save to memory
     
     jr ra
+
 
 
 reverse:                            # Reverse the binary digits of the number. Takes input n (in t6)
@@ -78,36 +95,25 @@ reverse:                            # Reverse the binary digits of the number. T
 
 preload_constants:
     # Load addresses of constants into registers
+    # Make use of the fact that all float are 4 bytes and stored consecutively
     la      t0, half_pi_hi          # Load address of half_pi_hi
     flw     fs0, 0(t0)             # Load value into fs0
-    la      t0, half_pi_lo          # Load address of half_pi_lo
-    flw     fs1, 0(t0)             # Load value into fs1
-    la      t0, const_2_pi          # Load address of const_2_pi
-    flw     fs2, 0(t0)             # Load value into fs2
-    la      t0, const_12582912      # Load address of const_12582912
-    flw     fs3, 0(t0)             # Load value into fs3
+    flw     fs1, 4(t0)             # Load value into fs1
+    flw     fs2, 8(t0)             # Load value into fs2
+    flw     fs3, 12(t0)             # Load value into fs3
 
     # Load cosine coefficients
-    la      t0, cos_coeff_0         # Load address of cos_coeff_0
-    flw     fs4, 0(t0)             # Load value into fs4
-    la      t0, cos_coeff_1         # Load address of cos_coeff_1
-    flw     fs5, 0(t0)             # Load value into fs5
-    la      t0, cos_coeff_2         # Load address of cos_coeff_2
-    flw     fs6, 0(t0)             # Load value into fs6
-    la      t0, cos_coeff_3         # Load address of cos_coeff_3
-    flw     fs7, 0(t0)             # Load value into fs7
-    la      t0, cos_coeff_4         # Load address of cos_coeff_4
-    flw     fs8, 0(t0)             # Load value into fs8
+    flw     fs4, 16(t0)             # Load value into fs4
+    flw     fs5, 20(t0)             # Load value into fs5
+    flw     fs6, 24(t0)             # Load value into fs6
+    flw     fs7, 28(t0)             # Load value into fs7
+    flw     fs8, 32(t0)             # Load value into fs8
 
     # Load sine coefficients
-    la      t0, sin_coeff_0         # Load address of sin_coeff_0
-    flw     fs9, 0(t0)             # Load value into fs9
-    la      t0, sin_coeff_1         # Load address of sin_coeff_1
-    flw     fs10, 0(t0)            # Load value into fs10
-    la      t0, sin_coeff_2         # Load address of sin_coeff_2
-    flw     fs11, 0(t0)            # Load value into fs11
-    la      t0, sin_coeff_3         # Load address of sin_coeff_3
-    flw     ft11, 0(t0)            # Load value into ft11
+    flw     fs9, 36(t0)             # Load value into fs9
+    flw     fs10, 40(t0)            # Load value into fs10
+    flw     fs11, 44(t0)            # Load value into fs11
+    flw     ft11, 48(t0)            # Load value into ft11
 
     ret
 
@@ -194,39 +200,43 @@ ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
 
     call reverse  # is saved in to a6. Do not save ra. it is saved in parent funciton
 
-
-    slli t2, t6, 2  # i*4
     slli t3, a6, 2  # rev_index*4
     
     add t4, a0, t3  # real array index rev_index
-    add t5, s0, t2  # real_temp array i
     flw ft1, 0(t4)
-    fsw ft1, 0(t5)
+    fsw ft1, 0(s0)
+    addi s0, s0, 4  # real_temp array i
+
     
     add t4, a1, t3  # imag array index rev_index
-    add t5, s1, t2  # imag_temp array i
     flw ft1, 0(t4)
-    fsw ft1, 0(t5)
-    
+    fsw ft1, 0(s1)
+    addi s1, s1, 4  # imag_temp array i
 
     addi t6, t6, 1
     j forordina
     endforordina:
 
+    la s0, real_temp
+    la s1, imag_temp
+
     
     addi t1, zero, 0  # j
     forordina2:
     bge t1, a2, endforordina2
-    slli t2, t1, 2  # t2 = t1*4 for index
-    add t3, t2, s0
-    flw ft1, 0(t3)  # load real_temp
-    add t3, t2, a0
-    fsw ft1, 0(t3)  # save to real
+
+    flw ft1, 0(s0)  # load real_temp
+    fsw ft1, 0(a0)  # save to real
     
-    add t3, t2, s1
-    flw ft1, 0(t3)  # load imag_temp
-    add t3, t2, a1
-    fsw ft1, 0(t3)  # save to real
+    flw ft1, 0(s1)  # load imag_temp
+    fsw ft1, 0(a1)  # save to real
+
+
+    addi s0, s0, 4
+    addi a0, a0, 4
+    addi s1, s1, 4
+    addi a1, a1, 4
+
     
     addi t1, t1, 1
     j forordina2
@@ -448,63 +458,55 @@ IFFT: # takes input real a0, imag a1, N a2
     jr ra
     
 
-print:                      # Writes real/imag in the ft0 and ft1 register for log
-	addi sp, sp, -24
-	sw t0, 0(sp)
-	sw s0, 4(sp)
-	sw a0, 8(sp)
-	sw a1, 12(sp)
-	fsw fa0, 16(sp)
-	fsw fa1, 20(sp)
-	
-	la a0, size                     # a0 has base address of word size
-	lw s0, 0(a0)                    # load size to register s0
-	
-	la a0, real                     # now a0 has address of reals
-	la a1, imag	                    # now a1 has address of imag
-	
+
+# Function: print
+# Logs values from real[] and imag[] arrays into registers ft0 and ft1 for debugging and output.
+# Inputs:
+#   - a0: Base address of real[] array
+#   - a1: Base address of imag[] array
+#   - a2: Size of array i.e. number of elements to log
+# Clobbers: t0,t1, t2, ft0, ft1. a0 and a1 are modified
+print:                      
     li t0, 0x123456                 # Pattern for help in python script
     li t0, 0x234567                 # Pattern for help in python script
     li t0, 0x345678                 # Pattern for help in python script
+
+    mv t1, a0                       # Move address to temp register to avoid stacking
+    mv t2, a1                       # Move address to temp register to avoid stacking
 	li t0, 0		                # load i = 0
-	
-	printloop:
-	bge t0, s0, endPrintLoop
-	
-	flw fa0, 0(a0)
-	flw fa1, 0(a1)
-	
-	addi a0, a0, 4
-	addi a1, a1, 4
-	
-	addi t0, t0, 1
-	j printloop
-	endPrintLoop:
+
+    printloop:
+    bge t0, a2, endPrintLoop        # Exit loop if i >= size
+
+    flw ft0, 0(t1)                  # Load real[i] into fa0
+    flw ft1, 0(t2)                  # Load imag[i] into fa1
+
+    addi t1, t1, 4                  # Increment pointer for real[]
+    addi t2, t2, 4                  # Increment pointer for imag[]
+
+    addi t0, t0, 1                  # Increment index
+    j printloop                     # Jump to start of loop
+    endPrintLoop:
 
     li t0, 0x123456                 # Pattern for help in python script
     li t0, 0x234567                 # Pattern for help in python script
     li t0, 0x345678                 # Pattern for help in python script
-	
-	lw t0, 0(sp)
-	lw s0, 4(sp)
-	lw a0, 8(sp)
-	lw a1, 12(sp)
-	flw fa0, 16(sp)
-	flw fa1, 20(sp)
-	addi sp, sp, 24
 	
 	jr ra
 
 
 
+# Function: _finish
+# VeeR Related function which writes to to_host which stops the simulator
 _finish:
     li x3, 0xd0580000
     addi x5, x0, 0xff
     sb x5, 0(x3)
     beq x0, x0, _finish
-.rept 100
-    nop
-.endr
+
+    .rept 100
+        nop
+    .endr
 
 
 .data  

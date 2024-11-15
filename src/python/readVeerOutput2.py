@@ -15,10 +15,13 @@ def process_file(file_name, start_index, end_index):
         
         # Process lines within the specified range
         for i in range(start_index, end_index):
-            if "c.flw" in lines[i]:
+            if "c.flw" in lines[i] or "flw" in lines[i]:
                 words = lines[i].split()
                 if len(words) > 1:
-                    index_of_cflw = words.index("c.flw")
+                    if "c.flw" in lines[i]:
+                        index_of_cflw = words.index("c.flw")
+                    else:
+                        index_of_cflw = words.index("flw")
                     if index_of_cflw > 0:
                         if save_to_real:
                             real.append(words[index_of_cflw - 1])
