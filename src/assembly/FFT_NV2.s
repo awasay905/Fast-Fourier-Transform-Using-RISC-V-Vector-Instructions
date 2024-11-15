@@ -11,17 +11,11 @@ main:
     la a0, real                     # Load address of real[] into a0
     la a1, imag                     # Load address of imag[] into a1
     lw a2, size                     # Load size of real/imag arrays into a2
+
     call FFT                        # Perform FFT on real[] and imag[] arrays
-
-    la a0, real                     # Load address of real[] into a0
-    la a1, imag                     # Load address of imag[] into a1
-    lw a2, size                     # Load size of real/imag arrays into a2
     call IFFT                       # Perform IFFT on real[] and imag[] arrays
-
-    la a0, real                     # Load address of real[] into a0
-    la a1, imag                     # Load address of imag[] into a1
-    lw a2, size                     # Load size of real/imag arrays into a2
     call print                      # Log the values of the arrays for debugging or display
+
     j _finish                       # Jump to program finish/exit
 
 
@@ -44,208 +38,243 @@ setlogN:
 
 
 
-reverse:                            # Reverse the binary digits of the number. Takes input n (in t6)
-    # use t0, t1, t2
+# Function: reverse
+# Reverses the binary digits of a 32-bit integer.
+# Inputs:
+#   - a0: Input number to reverse.
+#   - a1: Number of significant bits to reverse (optional; default 32).
+# Outputs:
+#   - a0: The reversed binary number.
+# Clobbers:
+#   - t0, t1, t2. 
+reverse:                            
     # Swap odd and even bits
-    mv a6, t6
     li t0, 0x55555555    # Pattern for odd/even bits
-    srli t1, a6, 1       # v >> 1
+    srli t1, a0, 1       # v >> 1
     and t1, t1, t0       # (v >> 1) & 0x55555555
-    and t2, a6, t0       # v & 0x55555555
+    and t2, a0, t0       # v & 0x55555555
     slli t2, t2, 1       # (v & 0x55555555) << 1
-    or a6, t1, t2        # Result back to a6
+    or a0, t1, t2        # Result back to a0
 
     # Swap consecutive pairs
     li t0, 0x33333333    # Pattern for pairs
-    srli t1, a6, 2       # v >> 2
+    srli t1, a0, 2       # v >> 2
     and t1, t1, t0       # (v >> 2) & 0x33333333
-    and t2, a6, t0       # v & 0x33333333
+    and t2, a0, t0       # v & 0x33333333
     slli t2, t2, 2       # (v & 0x33333333) << 2
-    or a6, t1, t2        # Result back to a6
+    or a0, t1, t2        # Result back to a0
 
     # Swap nibbles
     li t0, 0x0F0F0F0F    # Pattern for nibbles
-    srli t1, a6, 4       # v >> 4
+    srli t1, a0, 4       # v >> 4
     and t1, t1, t0       # (v >> 4) & 0x0F0F0F0F
-    and t2, a6, t0       # v & 0x0F0F0F0F
+    and t2, a0, t0       # v & 0x0F0F0F0F
     slli t2, t2, 4       # (v & 0x0F0F0F0F) << 4
-    or a6, t1, t2        # Result back to a6
+    or a0, t1, t2        # Result back to a0
 
     # Swap bytes
     li t0, 0x00FF00FF    # Pattern for bytes
-    srli t1, a6, 8       # v >> 8
+    srli t1, a0, 8       # v >> 8
     and t1, t1, t0       # (v >> 8) & 0x00FF00FF
-    and t2, a6, t0       # v & 0x00FF00FF
+    and t2, a0, t0       # v & 0x00FF00FF
     slli t2, t2, 8       # (v & 0x00FF00FF) << 8
-    or a6, t1, t2        # Result back to a6
+    or a0, t1, t2        # Result back to a0
 
     # Swap 2-byte pairs
-    srli t1, a6, 16      # v >> 16
-    slli t2, a6, 16      # v << 16
-    or a6, t1, t2        # Final result in a6
+    srli t1, a0, 16      # v >> 16
+    slli t2, a0, 16      # v << 16
+    or a0, t1, t2        # Final result in a0
 
     # Save number of bits to reverse in t2
     # bits are in a7
     li t1, 32
-    sub t1, t1, a7
-    srl a6, a6, t1
+    sub t1, t1, a1
+    srl a0, a0, t1
     
     ret                            # Return with result in a0
     
 
+
+# Function: preload_constants
+# Preloads floating-point constants into registers for use in trigonometric calculations.
+# Inputs:
+#   - None
+# Outputs:
+#   - Constants loaded into fs0 through fs11 and ft11.
+# Clobbers:
+#   - t0, fs0-fs11, ft11.
 preload_constants:
     # Load addresses of constants into registers
     # Make use of the fact that all float are 4 bytes and stored consecutively
     la      t0, half_pi_hi          # Load address of half_pi_hi
-    flw     fs0, 0(t0)             # Load value into fs0
-    flw     fs1, 4(t0)             # Load value into fs1
-    flw     fs2, 8(t0)             # Load value into fs2
-    flw     fs3, 12(t0)             # Load value into fs3
+    flw     fs0, 0(t0)              # Load half_pi_hi into fs0
+    flw     fs1, 4(t0)              # Load half_pi_lo into fs1
+    flw     fs2, 8(t0)              # Load const_2_pi into fs2
+    flw     fs3, 12(t0)             # Load const_12582912 into fs3
 
     # Load cosine coefficients
-    flw     fs4, 16(t0)             # Load value into fs4
-    flw     fs5, 20(t0)             # Load value into fs5
-    flw     fs6, 24(t0)             # Load value into fs6
-    flw     fs7, 28(t0)             # Load value into fs7
-    flw     fs8, 32(t0)             # Load value into fs8
+    flw     fs4, 16(t0)             # Load 2.44677067e-5 into fs4
+    flw     fs5, 20(t0)             # Load -1.38877297e-3 into fs5
+    flw     fs6, 24(t0)             # Load 4.16666567e-2 into fs6
+    flw     fs7, 28(t0)             # Load -5.00000000e-1 into fs7
+    flw     fs8, 32(t0)             # Load 1.00000000e+0 into fs8
 
     # Load sine coefficients
-    flw     fs9, 36(t0)             # Load value into fs9
-    flw     fs10, 40(t0)            # Load value into fs10
-    flw     fs11, 44(t0)            # Load value into fs11
-    flw     ft11, 48(t0)            # Load value into ft11
+    flw     fs9, 36(t0)             # Load 2.86567956e-6 into fs9
+    flw     fs10, 40(t0)            # Load -1.98559923e-4 into fs10
+    flw     fs11, 44(t0)            # Load 8.33338592e-3 into fs11
+    flw     ft11, 48(t0)            # Load -1.66666672e-1 into ft11
 
     ret
 
+
+# Function: sin_cos_approx
+# Calculates sin and cos of the float using chebishev polynomial
+# Taken from stackoverflow
+# Input:
+#   - fa0 = angle (a) in radians
+# Output:
+#   - fa0 = sin(a) (approximation)
+#   - fa1 = cos(a) (approximation)
+# Clobbers:
+#   - t0, t1, ft0, ft1, ft2, ft3
+# Help:
+#   - i = t0, ic = t1, j = ft0, a = ft1, sa = ft2, t = ft3
 sin_cos_approx:
-    # Input: fa0 = a
-    # Output: fa0 = sin, fa1 = cos
+    fmadd.s ft0, fa0, fs2, fs3          # j = fmaf(a, 6.36619747e-1f, 12582912.f)
+    fsub.s ft0, ft0, fs3                # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
 
-    # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
-    fmadd.s ft5, fa0, fs2, fs3
-    fsub.s ft5, ft5, fs3
+    fnmsub.s   ft1, ft0, fs0, fa0       # a = a - j * half_pi_hi
+    fnmsub.s   ft1, ft0, fs1, ft1       # a = a - j * half_pi_lo
 
-    # a = fmaf(j, -half_pi_hi, a)
-    fnmsub.s   ft6, ft5, fs0, fa0     # a = a - j * half_pi_hi
-
-    # a = fmaf(j, -half_pi_lo, a)
-    fnmsub.s   ft6, ft5, fs1, ft6     # a = a - j * half_pi_lo
-
-    # Compute i = (int) j and i = i + 1
-    fcvt.w.s t0, ft5                # Convert j to integer in t0
+    fcvt.w.s t0, ft0                #  i = (int) j
     addi    t1, t0, 1              # ic = i + 1
-    
 
-    # Compute sa = a * a
-    fmul.s  ft7, ft6, ft6          # ft1 = a * a (sa)
+    fmul.s  ft2, ft1, ft1          # ft2 = a * a (sa)
 
-    # Approximate cosine on [-π/4, +π/4] using polynomial approximation
-    # c = 2.44677067e-5
-    fmadd.s   fa2, fs4, ft7, fs5     # c = c * sa + -1.38877297e-3
-    fmadd.s   fa2, fa2, ft7, fs6     # c = c * sa + 4.16666567e-2
-    fmadd.s   fa2, fa2, ft7, fs7     # c = c * sa + -0.5
-    fmadd.s   fa0, fa2, ft7, fs8     # c = c * sa + 1.0
+    # Approximate cosine. By default save it to fa0
+    fmadd.s   fa0, fs4, ft2, fs5     # c = c * sa + -1.38877297e-3
+    fmadd.s   fa0, fa0, ft2, fs6     # c = c * sa + 4.16666567e-2
+    fmadd.s   fa0, fa0, ft2, fs7     # c = c * sa + -0.5
+    fmadd.s   fa0, fa0, ft2, fs8     # c = c * sa + 1.0
 
-    # Approximate sine on [-π/4, +π/4] using polynomial approximation
-    fmadd.s   fa4, fs9, ft7, fs10     # s = s * sa + -1.98559923e-4
-    fmadd.s   fa4, fa4, ft7, fs11     # s = s * sa + 8.33338592e-3
-    fmadd.s   fa4, fa4, ft7, ft11     # s = s * sa + -0.166666672
-    fmul.s ft9, ft6, ft7            # t = a * sa
-    fmadd.s   fa1, fa4, ft9, ft6     # s = s * a
+    # Approximate sine. By default save it to fa1
+    fmadd.s   fa1, fs9, ft2, fs10     # s = s * sa + -1.98559923e-4
+    fmadd.s   fa1, fa1, ft2, fs11     # s = s * sa + 8.33338592e-3
+    fmadd.s   fa1, fa1, ft2, ft11     # s = s * sa + -0.166666672
+    fmul.s    ft3, ft1, ft2           # t = a * sa
+    fmadd.s   fa1, fa1, ft3, ft1      # s = s * a
 
-    #t0 is for sin . fa4. i
-    #t1 is for cos . fa2. ic
-
-    # r = (i & 1) ? c : s;
-    andi    t5, t0, 1              # t0 = i & 1
-    beqz    t5, ifsincos1        # If i & 1 == 0, jump to ifsincos1
+    #t0 is for sin  i
+    #t1 is for cos  ic
+    andi    t2, t0, 1              # t0 = i & 1
+    beqz    t2, ifsincos        # If i & 1 == 0, jump to ifsincos
     j       adjust_sign            # Jump to adjust_sign
 
-ifsincos1:
-    fmv.s fa4, fa0
-    fmv.s fa0, fa1
-    fmv.s   fa1, fa4
+    ifsincos:
+        fmv.s ft0, fa0
+        fmv.s fa0, fa1
+        fmv.s   fa1, ft0
 
-adjust_sign:
-    andi    t0, t0, 2              # t0 = i & 2
-    beqz    t0, sign1done           # If i & 2 == 0, skip sign flip
-    fneg.s  fa0, fa0               # r = -r
-    
-sign1done:
+    adjust_sign:
+        andi    t0, t0, 2              # t0 = i & 2
+        beqz    t0, sign1done           # If i & 2 == 0, skip sign flip
+        fneg.s  fa0, fa0               # r = -r
+        
+    sign1done:
 
-    andi t1, t1, 2
-    beqz t1, sign2done
-    fneg.s fa1, fa1
+        andi t1, t1, 2
+        beqz t1, sign2done
+        fneg.s fa1, fa1
 
-sign2done:
+    sign2done:
 
-    ret
+        ret
 
-
-ordina: # it receives base address of real[] a0, imag[] a1, and an int N a2
-    addi sp, sp, -12
+# Function: ordina
+# Reorders real[] and imag[] arrays based on bit-reversed indices.
+# Inputs:
+#   - a0: Base address of real[] array
+#   - a1: Base address of imag[] array
+#   - a2: Size of the arrays (N)
+# Outputs:
+#   - real[] and imag[] reordered in place
+# Clobbers:
+#   - t0, t1, t2, t3, t4, t5, ft0, ft1
+ordina: 
+    addi sp, sp, -20
     sw ra, 0(sp)
     sw a0, 4(sp)
     sw a1, 8(sp)
+    sw a3, 12(sp)
+    sw a4, 16(sp)
     
-    la s0, real_temp
-    la s1, imag_temp
-    lw a7, logsize
+    la t4, real_temp               # Load address of temporary real array
+    la t5, imag_temp               # Load address of temporary imag array
+    mv a3, a0                      # Copy real[] base to a3
+    mv a4, a1                      # Copy imag[] base to a4
 
-    li t6,  0 # i
-    li a6,  0 # rev(i)
-    
+    lw a1, logsize
+
+    li t3,  0 # i
     forordina:
-    bge t6, a2, endforordina
+    bge t3, a2, endforordina
 
-    call reverse  # is saved in to a6. Do not save ra. it is saved in parent funciton
+    mv a0, t3                      # Move i to a0 for reverse function
+    call reverse                   # Compute bit-reversed index for i
 
-    slli t3, a6, 2  # rev_index*4
-    
-    add t4, a0, t3  # real array index rev_index
-    flw ft1, 0(t4)
-    fsw ft1, 0(s0)
-    addi s0, s0, 4  # real_temp array i
+    # Generate Reversed Index Offset
+    slli t2, a0, 2  
+    add t0, a3, t2  
+    add t1, a4, t2 
 
-    
-    add t4, a1, t3  # imag array index rev_index
-    flw ft1, 0(t4)
-    fsw ft1, 0(s1)
-    addi s1, s1, 4  # imag_temp array i
+    # Load from real array
+    flw ft0, 0(t0)
+    flw ft1, 0(t1)
 
-    addi t6, t6, 1
+    # Save to temp array
+    fsw ft0, 0(t4)
+    fsw ft1, 0(t5)
+
+    # Increment Address
+    addi t4, t4, 4  
+    addi t5, t5, 4  
+
+    addi t3, t3, 1
     j forordina
     endforordina:
 
-    la s0, real_temp
-    la s1, imag_temp
-
+    la t4, real_temp
+    la t5, imag_temp
     
-    addi t1, zero, 0  # j
+    addi t0, zero, 0  # i
     forordina2:
-    bge t1, a2, endforordina2
+    bge t0, a2, endforordina2
 
-    flw ft1, 0(s0)  # load real_temp
-    fsw ft1, 0(a0)  # save to real
-    
-    flw ft1, 0(s1)  # load imag_temp
-    fsw ft1, 0(a1)  # save to real
+    # Load from temp array
+    flw ft0, 0(t4)  
+    flw ft1, 0(t5) 
 
+    # Save to normal array
+    fsw ft0, 0(a3)  
+    fsw ft1, 0(a4)  
 
-    addi s0, s0, 4
-    addi a0, a0, 4
-    addi s1, s1, 4
-    addi a1, a1, 4
+    # Increment address
+    addi t4, t4, 4
+    addi t5, t5, 4
+    addi a3, a3, 4
+    addi a4, a4, 4
 
-    
-    addi t1, t1, 1
+    addi t0, t0, 1
     j forordina2
     endforordina2:
     
     lw ra, 0(sp)
     lw a0, 4(sp)
     lw a1, 8(sp)
-    addi sp, sp, 12
+    lw a3, 12(sp)
+    lw a4, 16(sp)
+    addi sp, sp, 20
 
     jr ra
 
@@ -255,7 +284,7 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     addi sp, sp, -4   # save ra to stack. only once because it is safe?
     sw ra, 0(sp)
 
-    call ordina
+    call ordina # uses.  t0, t1, t2, t3, t4, t5, ft0, ft1
     
     la s0, W_real
     la s1, W_imag
@@ -400,19 +429,22 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
 # Output:
 #   In-place modification of arrays (a0, a1).
 # Clobbers:
-#   a3    
+#   None   
 FFT:                                       
-    addi sp, sp, -4
+    addi sp, sp, -8
     sw ra, 0(sp)
+    sw a3, 4(sp)
     
     li a3, 1                   # Set a3 to 1 (indicates non-inverse FFT)
     call transform             # Call the 'transform' function (performs FFT)
     
     lw ra, 0(sp)
-    addi sp, sp, 4
+    lw a3, 4(sp)
+    addi sp, sp, 8
     
     jr ra
     
+
 
 # IFFT:
 #   Performs the IFFT on real and imaginary inputs.
@@ -423,38 +455,49 @@ FFT:
 # Output:
 #   In-place modification of arrays (a0, a1).
 # Clobbers:
-#   a3    
-IFFT: # takes input real a0, imag a1, N a2
-    addi sp, sp, -4
-    sw ra, 0(sp)
+#   t0, ft0, ft1, ft2
+IFFT: 
+    addi sp, sp, -16            # Save a0, a1 etc to stack because these addresses
+    sw ra, 0(sp)                # Are modified when dividing
+    sw a0, 4(sp)    
+    sw a1, 8(sp)
+    sw a3, 12(sp)
     
-    li a3, -1 # 1 is true so inverse
-    call transform
+    li a3, -1                   # Set a3 to -1 (indicates inverse FFT)
+    call transform              # Call the 'transform' function (performs IFFT)
     
-    lw ra, 0(sp)
-    addi sp, sp, 4
-    
-    addi t0, zero, 0 # i = 0
-    fcvt.s.w ft3, a2 # N is in ft3
+    li t0, 0                    # i = 0
+    fcvt.s.w ft2, a2            # N for division in float
 
     forloopifft:
     bge t0, a2, endforloopifft
-    # lets do real first
-    flw ft2, 0(a0)
-    fdiv.s ft2, ft2, ft3 # div by N
-    fsw ft2, 0(a0)
     
-    # now do imag
-    flw ft2, 0(a1)
-    fdiv.s ft2, ft2, ft3 # div by N
-    fsw ft2, 0(a1)
+    # Load Real/Imag Pair
+    flw ft0, 0(a0)
+    flw ft1, 0(a1)
+
+    # Divide by N
+    fdiv.s ft0, ft0, ft2 
+    fdiv.s ft1, ft1, ft2 
+
+    # Save back to memory
+    fsw ft0, 0(a0)
+    fsw ft1, 0(a1)
     
-    addi a0, a0, 4  # increment address by word size
+    # Increment address by word size
+    addi a0, a0, 4  
     addi a1, a1, 4
+
     addi t0, t0, 1
     j forloopifft
-    
     endforloopifft:
+
+    lw ra, 0(sp)
+    lw a0, 4(sp)
+    lw a1, 8(sp)
+    lw a3, 12(sp)
+    addi sp, sp, 16
+
     jr ra
     
 
@@ -465,7 +508,7 @@ IFFT: # takes input real a0, imag a1, N a2
 #   - a0: Base address of real[] array
 #   - a1: Base address of imag[] array
 #   - a2: Size of array i.e. number of elements to log
-# Clobbers: t0,t1, t2, ft0, ft1. a0 and a1 are modified
+# Clobbers: t0,t1, t2, ft0, ft1.
 print:                      
     li t0, 0x123456                 # Pattern for help in python script
     li t0, 0x234567                 # Pattern for help in python script
