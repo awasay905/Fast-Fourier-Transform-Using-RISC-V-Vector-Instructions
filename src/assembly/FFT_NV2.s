@@ -165,31 +165,28 @@ sin_cos_approx:
     fmul.s    ft3, ft1, ft2           # t = a * sa
     fmadd.s   fa1, fa1, ft3, ft1      # s = s * a
 
-    #t0 is for sin  i
-    #t1 is for cos  ic
-    andi    t2, t0, 1              # t0 = i & 1
-    beqz    t2, ifsincos        # If i & 1 == 0, jump to ifsincos
-    j       adjust_sign            # Jump to adjust_sign
+    # Check the value of i and adjust the order of sine and cosine if needed
+    andi t2, t0, 1                     # t2 = i & 1
+    beqz t2, ifsincos                   # If i & 1 == 0, jump to ifsincos
+    j adjust_sign                       # Jump to adjust_sign
 
     ifsincos:
-        fmv.s ft0, fa0
+        fmv.s ft0, fa0                  # Swap sine and cosine
         fmv.s fa0, fa1
-        fmv.s   fa1, ft0
+        fmv.s fa1, ft0
 
     adjust_sign:
-        andi    t0, t0, 2              # t0 = i & 2
-        beqz    t0, sign1done           # If i & 2 == 0, skip sign flip
-        fneg.s  fa0, fa0               # r = -r
-        
-    sign1done:
+        andi t0, t0, 2                  # t0 = i & 2
+        beqz t0, sign1done               # If i & 2 == 0, skip sign flip
+        fneg.s fa0, fa0                  # Negate sine if i & 2 != 0
 
-        andi t1, t1, 2
-        beqz t1, sign2done
-        fneg.s fa1, fa1
+    sign1done:
+        andi t1, t1, 2                  # t1 = ic & 2
+        beqz t1, sign2done              # If ic & 2 == 0, skip sign flip
+        fneg.s fa1, fa1                  # Negate cosine if ic & 2 != 0
 
     sign2done:
-
-        ret
+        ret                              # Return with sine in fa0, cosine in fa1
 
 # Function: ordina
 # Reorders real[] and imag[] arrays based on bit-reversed indices.
@@ -281,28 +278,30 @@ ordina:
 
  
 transform:      # it receives base address of real[] a0, imag[] a1, and an int N a2, inverse flag in a3
-    addi sp, sp, -4   # save ra to stack. only once because it is safe?
+    addi sp, sp, -4 
     sw ra, 0(sp)
 
-    call ordina # uses.  t0, t1, t2, t3, t4, t5, ft0, ft1
-    
+    call ordina 
+
     la s0, W_real
     la s1, W_imag
+
+
+    call preload_constants 
     
+    # Calculating (inverse)*-2*PI/N
+    mul t0, a2, a3              # t0 = (inverse)*N
+    fcvt.s.w ft0, t0            # ft0 = (inverse)*N
+    la t0, NEG_TWO_PI
+    flw ft4, 0(t0)              # ft4 = -2*PI
+    fdiv.s ft4, ft4, ft0        # ft4 = (inverse)*-2*PI/N
+
     addi a6, zero, 0            # a6 = i = 0
     fcvt.s.w fa6, a6        # fa6 = i convert i to float to use in sin/cos
     li s3, 1
     fcvt.s.w fa5, s3        # createa a floating 1 to keep adding to i. used to avoid converting i to float in loop
     srli s3, a2, 1              # s3 = N/2
-    
-    # Calculating (inverse)*-2*PI/N
-    la a7, NEG_TWO_PI
-    flw fa3, 0(a7)              # fa3 = -2*PI
-    mul a7, a2, a3              # a7 = (inverse)*N
-    fcvt.s.w fa7, a7            # fa7 = (inverse)*N
-    fdiv.s fa3, fa3, fa7        # fa3 = (inverse)*-2*PI/N
 
-    call preload_constants
 
     sincosfor:
     bge a6, s3, sincosforend
@@ -310,16 +309,23 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     fmul.s fa0, fa3, fa6    # fa0 is mulvalue
 
     call sin_cos_approx          # Now fa1 has myCos . RA is not saved because it is saved once in this function
-    fsw fa1, 0(s0)      # save output to wreal
-    fsw fa0, 0(s1)          # save output to wreal
 
-    addi s0, s0, 4 # increment addreess
-    addi s1, s1, 4 # increment addreess
+    # Save cos/sin to W array
+    fsw fa1, 0(s0)      
+    fsw fa0, 0(s1)    
 
-    addi a6, a6, 1  # i++
-    fadd.s fa6, fa6, fa5    # floating i increment
+    # Increment Address
+    addi s0, s0, 4 
+    addi s1, s1, 4 
+
+    # Increment Loop index + float
+    addi a6, a6, 1  
+    fadd.s fa6, fa6, fa5   
     j sincosfor
     sincosforend:
+
+
+
 
     ########
     #Instead of creating offest and adding it to base address or wreal and wimag
