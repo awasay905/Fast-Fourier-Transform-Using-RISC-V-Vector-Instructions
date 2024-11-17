@@ -337,6 +337,9 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     bge t0, s4, endtransformfor1
    
    ## SECOND LOOP 
+   # calculate stride(n*a) here
+    mul t6, s2, s3 # n * a
+
     addi t1, zero, 0 # t1 = i = 0
     transformfor2:
     bge t1, a2, transformfor2end
@@ -352,8 +355,7 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     flw ft1, 0(s10)  # imag[i]
     
     mul t4, t1, s3 # i * a
-    mul t5, s2, s3 # n * a
-    rem t4, t4, t5 # k = t4 % t5
+    rem t4, t4, t6 # k = t4 % t5
     
     slli t4, t4, 2 # offset, k * 4
 
