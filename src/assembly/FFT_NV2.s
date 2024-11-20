@@ -328,6 +328,14 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
 
 
     ########
+    # ft0 real[i]
+    # ft1 imag[i]
+    # ft2 wreal[k]
+    # ft3 wimag[k]
+    # ft4 real[i+n]
+    # ft5 imag[i+n]
+    
+
     #Instead of creating offest and adding it to base address or wreal and wimag
     # just keep incrementing them by 4 (word size)
     # and after loop end restore them
@@ -356,34 +364,27 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
 
     slli t3, t1, 2 #  i*4 offeset
     add s9, a0, t3 # real base + offset
-    flw ft0, 0(s9)  # real[i]
     add s10, a1, t3 # imag base + offset
+    flw ft0, 0(s9)  # real[i]
     flw ft1, 0(s10)  # imag[i]
     
     mul t4, t1, s3 # i * a
     rem t4, t4, t6 # k = t4 % t5
-    
-    slli t4, t4, 2 # offset, k * 4
 
+    slli t4, t4, 2 # offset, k * 4
     add t5, s0, t4 # W_real
+    add t3, s1, t4  # W_imag
     flw ft2, 0(t5)  # w-real[k]
-    add t5, s1, t4  # W_imag
-    flw ft3, 0(t5) #w_imag[k]
+    flw ft3, 0(t3) #w_imag[k]
     
     
     add t5, t1, s2 # i + n
     slli t5, t5, 2 # offset
     add s7, t5, a0
-    flw ft4, 0(s7)  # real[i+n]
     add s8, t5, a1
+    flw ft4, 0(s7)  # real[i+n]
     flw ft5, 0(s8)  # imag[i+n]
 
-    # ft0 real[i]
-    # ft1 imag[i]
-    # ft2 wreal[k]
-    # ft3 wimag[k]
-    # ft4 real[i+n]
-    # ft5 imag[i+n]
 
     fmul.s ft7, ft3, ft5 #  W_imag*imag(i+n)
     fmsub.s fs1, ft2, ft4, ft7   # #  W_real*real(i+n) - W_imag*imag(i+n)
