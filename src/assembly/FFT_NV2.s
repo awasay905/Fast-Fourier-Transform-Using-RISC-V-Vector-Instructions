@@ -305,13 +305,12 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     fcvt.s.w fa5, s3        # createa a floating 1 to keep adding to i. used to avoid converting i to float in loop
     srli s3, a2, 1              # s3 = N/2
 
-
     sincosfor:
     bge a6, s3, sincosforend
     
+    # Call sin_cos_approx. cos returned in fa1, sin in fa0
     fmul.s fa0, fa3, fa6    # fa0 is mulvalue
-
-    call sin_cos_approx          # Now fa1 has myCos . RA is not saved because it is saved once in this function
+    call sin_cos_approx      
 
     # Save cos/sin to W array
     fsw fa1, 0(s0)      
@@ -327,105 +326,108 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     j sincosfor
     sincosforend:
 
-
-
-
-    ########
     # ft0 real[i]
     # ft1 imag[i]
     # ft2 wreal[k]
     # ft3 wimag[k]
     # ft4 real[i+n]
     # ft5 imag[i+n]
+
+    # t0    j for outer loop
+    # t1    i for inner loop
+    # t2    ( i AND n) for condition
+    # t3    temp. used in addr. cacl. in loop
+    # t4    temp. used in addr. cacl. in loop
+    # t5    n
+    # t6    a  
+    # a0    real base address
+    # a1    imag base address
+    # a2    N size
+    # a3    inverse flag. Useless after sin/cos. now stride. (n*a)
+    # a4    real[i]
+    # a5    imag[i]
+    # a6    real[i+n]
+    # a7    imag[i+n]   
+
     
 
-    #Instead of creating offest and adding it to base address or wreal and wimag
-    # just keep incrementing them by 4 (word size)
-    # and after loop end restore them
     la s0, W_real
     la s1, W_imag
     
-    addi s2, zero, 1  # s2 = n = 1
-    srli s3, a2, 1  # s3 = a = N/2
-    addi t0, zero, 0  # t0 = j = 0
-    
-    lw s4, logsize 
-    transformfor1:
-    bge t0, s4, endtransformfor1
+    addi t5, zero, 1                        # n = 1
+    srli t6, a2, 1                          # a = N/2
+    lw s4, logsize                          # s4 = log(N)
+
+    addi t0, zero, 0                        # j = 0
+    transformloop1:
+    bge t0, s4, endtransformloop1
    
-   ## SECOND LOOP 
-   # calculate stride(n*a) here
-    mul t6, s2, s3 # n * a
+    # Calculating Stride (n * 1)
+    mul a3, t5, t6
 
-    addi t1, zero, 0 # t1 = i = 0
-    transformfor2:
-    bge t1, a2, transformfor2end
+    addi t1, zero, 0                        # i = 0                 
+    transformforloop2:
+    bge t1, a2, transformforloop2end
     
-    and t2, t1, s2 # t2 = i AND n
-    bne t2, zero, transformelse
+    and t2, t1, t5                          # t2 = i AND n
+    bne t2, zero, transformelse             # Skip conditon
+
     transformif:
-
-    slli t3, t1, 2 #  i*4 offeset
-    add s9, a0, t3 # real base + offset
-    add s10, a1, t3 # imag base + offset
-    flw ft0, 0(s9)  # real[i]
-    flw ft1, 0(s10)  # imag[i]
+    # Load real[i] and imag[i]
+    slli t3, t1, 2                          #  Calculate array index offset
+    add a4, a0, t3                          # real base + offset
+    add a5, a1, t3                         # imag base + offset
+    flw ft0, 0(a4)                          # real[i]
+    flw ft1, 0(a5)                         # imag[i]
     
-    mul t4, t1, s3 # i * a
-    rem t4, t4, t6 # k = t4 % t5
+    # Calculate k ((i * a) % stride)
+    mul t3, t1, t6                          
+    rem t3, t3, a3                         
 
-    slli t4, t4, 2 # offset, k * 4
-    add t5, s0, t4 # W_real
-    add t3, s1, t4  # W_imag
-    flw ft2, 0(t5)  # w-real[k]
+    # Load real[k] and imag[k]
+    slli t3, t3, 2 # offset, k * 4
+    add t4, s0, t3 # W_real
+    add t3, s1, t3  # W_imag
+    flw ft2, 0(t4)  # w-real[k]
     flw ft3, 0(t3) #w_imag[k]
     
-    
-    add t5, t1, s2 # i + n
-    slli t5, t5, 2 # offset
-    add s7, t5, a0
-    add s8, t5, a1
-    flw ft4, 0(s7)  # real[i+n]
-    flw ft5, 0(s8)  # imag[i+n]
+    # Load real[i+n] and imag[i+n]
+    add t4, t1, t5 # i + n
+    slli t4, t4, 2 # offset
+    add a6, t4, a0
+    add a7, t4, a1
+    flw ft4, 0(a6)  # real[i+n]
+    flw ft5, 0(a7)  # imag[i+n]
 
-
-    fmul.s ft7, ft3, ft5 #  W_imag*imag(i+n)
-    fmsub.s fs1, ft2, ft4, ft7   # #  W_real*real(i+n) - W_imag*imag(i+n)
+    # Apply Transformation on Loaded Values
+    fmul.s ft6, ft3, ft5 #  W_imag*imag(i+n)
+    fmsub.s ft6, ft2, ft4, ft6   # #  W_real*real(i+n) - W_imag*imag(i+n)
 
     fmul.s ft7, ft3, ft4 #  W_imag*real(i+n)
-    fmadd.s fs2, ft2, ft5, ft7 #  W_real*imag(i+n) + W_imag*real(i+n)
+    fmadd.s ft7, ft2, ft5, ft7 #  W_real*imag(i+n) + W_imag*real(i+n)
 
-    # s7        real[i+n]
-    # s8        imag[i+n]
-    # s9        real[i]
-    # s10       imag[i]
+    fadd.s ft8, ft0, ft6                # ft8 = temp_real + temp1_real
+    fadd.s ft9, ft1, ft7                # ft9 = temp__img + temp1_img
+    fsub.s ft10, ft0, ft6               # ft10 = temp_real - temp1_real
+    fsub.s ft11, ft1, ft7               # ft11 = temp_real - temp1_real
 
-    fadd.s fs3, ft0, fs1 # save to real [i]
-    fsw fs3, 0(s9) # real[i] = fs3 = ft0+fs1 = temp_real + temp1_real
-    
-    fadd.s fs3, ft1, fs2 # save to imag [i]
-    fsw fs3, 0(s10) # imag[i] = fs3 = ft1+fs2 = temp__img + temp1_img
-    
-    fsub.s fs3, ft0, fs1 # save to real [i+n]
-    fsw fs3, 0(s7) # real[i+n] = fs3 = ft0-fs1 = temp_real - temp1_real
-    
-    fsub.s fs3, ft1, fs2 # save to imag [i+n]
-    fsw fs3, 0(s8) # imag[i+n] = fs3 = ft1-fs2 = temp_real - temp1_real
+    # Save Values Back
+    fsw ft8, 0(a4)                      # real[i]
+    fsw ft9, 0(a5)                      # imag[i] 
+    fsw ft10, 0(a6)                     # real[i+n]
+    fsw ft11, 0(a7)                     # imag[i+n]
     
     transformelse:
     
-    addi t1, t1, 1
-    j transformfor2
-    transformfor2end:
+    addi t1, t1, 1                      # i += 1
+    j transformforloop2
+    transformforloop2end:
     
-    ## SECOND LOOP ENDS HERE
-    
-    slli s2, s2, 1  # n = n * 2
-    srli s3, s3, 1  # a = a / 2
-    addi t0, t0, 1
-    j transformfor1
-    endtransformfor1:
-
+    slli t5, t5, 1                      # n *= 2
+    srli t6, t6, 1                      # a /= 2
+    addi t0, t0, 1                      # j += 1
+    j transformloop1
+    endtransformloop1:
 
     lw ra, 0(sp)
     addi sp, sp, 4
@@ -448,8 +450,8 @@ FFT:
     sw ra, 0(sp)
     sw a3, 4(sp)
     
-    li a3, 1                   # Set a3 to 1 (indicates non-inverse FFT)
-    call transform             # Call the 'transform' function (performs FFT)
+    li a3, 1                            # Set a3 to 1 (indicates non-inverse FFT)
+    call transform                      # Call the 'transform' function (performs FFT)
     
     lw ra, 0(sp)
     lw a3, 4(sp)
