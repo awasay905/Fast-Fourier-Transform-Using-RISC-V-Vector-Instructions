@@ -128,6 +128,7 @@ preload_constants:
     ret
 
 
+
 # Function: sin_cos_approx
 # Calculates sin and cos of the float using chebishev polynomial
 # Taken from stackoverflow
@@ -187,6 +188,8 @@ sin_cos_approx:
 
     sign2done:
         ret                              # Return with sine in fa0, cosine in fa1
+
+
 
 # Function: ordina
 # Reorders real[] and imag[] arrays based on bit-reversed indices.
@@ -429,6 +432,7 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     jr ra
    
     
+
 # FFT:
 #   Performs the FFT on real and imaginary inputs.
 # Inputs:
@@ -559,6 +563,7 @@ _finish:
     .rept 100
         nop
     .endr
+
 
 
 .data  
