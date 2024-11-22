@@ -267,18 +267,20 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     endVOrdinaLoop:
 
     vid.v v26
-    
+    vsll.vi v26, v26, 2             # Shift the indexes by 4 so it matches array offsets
+    slli t6, t3, 2                  # Shift VLEN by 4. Now instead of using 2 insturctions to addlven then shit i will just add shifted vlen to shifter indexes
+
     li t1, 0                        # t1    = j     = 0
     vOrdinaLoop2:                   # loop from 0 to size of array N
     bge t1, a2, endvOrdinaLoop2     # break when j >= N
 
-    vsll.vi v27, v26, 2                  # Multiply i by 4 to get starting offset
-    vloxei32.v v23, 0(t4) ,v27             # v23 = real_temp[i]
-    vloxei32.v v24, 0(t5), v27              # v24 = imag_temp[i]
+    vloxei32.v v23, 0(t4) ,v26             # v23 = real_temp[i]
+    vloxei32.v v24, 0(t5), v26              # v24 = imag_temp[i]
 
-    vsoxei32.v v23, 0(a0) , v27             # real[i] = realtemp[i], well its j but nvm
-    vsoxei32.v v24, 0(a1), v27
-    vadd.vx v26, v26, t3            # adds VLEN to indexVector, so all indexes increase by VLEN
+    vsoxei32.v v23, 0(a0) , v26             # real[i] = realtemp[i], well its j but nvm
+    vsoxei32.v v24, 0(a1), v26
+    
+    vadd.vx v26, v26, t6            # adds VLEN*4 to indexVector*4, so all indexes increase by VLEN*4
 
     add t1, t1, t3                  # i = i + VLEN
     j vOrdinaLoop2              
