@@ -250,15 +250,15 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     call vReverseIndexOffset                   # Now V29 have rev(N, <i>), Keep it there for later use 
 
     # Load from normal array reversed indexed
-    vloxei32.v v23, 0(a0), v29      # Load into v23 real[rev_index] 
-    vloxei32.v v24, 0(a1), v29      # Load into v24 imag[rev_index]
+    vloxei32.v v23, 0(a0), v29       
+    vloxei32.v v24, 0(a1), v29     
 
     # Generate Index Offset
     vsll.vi v27, v26, 2   
 
     # Save to temp array normal index
-    vsoxei32.v v23, 0(t4), v27            # real_temp[i] = real[rev_index];
-    vsoxei32.v v24, 0(t5), v27            # imag_temp[i] = imag[rev_index];
+    vsoxei32.v v23, 0(t4), v27            
+    vsoxei32.v v24, 0(t5), v27           
 
     # Increment
     vadd.vx v26, v26, t3            # adds VLEN to indexVector, so all indexes increase by VLEN
@@ -274,21 +274,24 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     vOrdinaLoop2:                   # loop from 0 to size of array N
     bge t1, a2, endvOrdinaLoop2     # break when j >= N
 
-    vloxei32.v v23, 0(t4) ,v26             # v23 = real_temp[i]
-    vloxei32.v v24, 0(t5), v26              # v24 = imag_temp[i]
+    # Indxed Load from temp array
+    vloxei32.v v23, 0(t4), v26             
+    vloxei32.v v24, 0(t5), v26            
 
-    vsoxei32.v v23, 0(a0) , v26             # real[i] = realtemp[i], well its j but nvm
+    # Indxed Store to normal array
+    vsoxei32.v v23, 0(a0), v26           
     vsoxei32.v v24, 0(a1), v26
-    
-    vadd.vx v26, v26, t6            # adds VLEN*4 to indexVector*4, so all indexes increase by VLEN*4
 
+    # Incrementing Indexes
+    vadd.vx v26, v26, t6            # adds VLEN*4 to indexVector*4, so all indexes increase by VLEN*4
     add t1, t1, t3                  # i = i + VLEN
+
     j vOrdinaLoop2              
     endvOrdinaLoop2:
 
     lw a7, 0(sp)
     lw ra, 4(sp)
-    addi sp, sp, 8                # We use 9 registers in this one
+    addi sp, sp, 8                # We use onlt 2 registers in this one
 
     jr ra
 
