@@ -10,7 +10,6 @@ main:
     lw a0, size                     # Load size of real/imag arrays into a0
     call setlogN                    # Compute and store log2(size) for shared use by other functions
 
-    call initIndexVector
     la a0, real                     # a0 = address of real[]
     la a1, imag                     # a1 = address of imag[]
     lw a2, size                     # a2 = size of arrays (N)
@@ -22,14 +21,6 @@ main:
     # Print results and finish
     call print
     j _finish 
-
-# Initialize helper vector with sequential integers (0,1,2,3..). input a0 size of vector
-initIndexVector:
-    la t0, indexVector
-    vsetvli t2, a0, e32, m1         # Set vector length once
-    vid.v v0                        # Generate index vector
-    vse32.v v0, (t0)
-    ret
 
 
 
@@ -138,7 +129,6 @@ preload_constants:
     flw     fs11, 44(t0)            # Load 8.33338592e-3 into fs11
     flw     ft11, 48(t0)            # Load -1.66666672e-1 into ft11
 
-
     vfmv.v.f v1, fs0
     vfmv.v.f v2, fs1
     vfmv.v.f v3, fs2
@@ -182,7 +172,6 @@ preload_constants:
 #   ic = v20, 
 
 v_sin_cos_approx:
-
     # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
     vmv.v.v   v15, v4 # move 12582912 to v15  because 
     vfmacc.vv  v15, v21, v3 # a(v21))*6.36619747e-1f(v3) + 12582912.f(v15)
@@ -297,7 +286,6 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
 
 
 vTransform:                 # Takes real a0, imag in a1, and N in a2, and Inverse Flag in a3
-
     addi sp, sp, -4         # Save return address for funtion call
     sw ra, 0(sp)
 
@@ -308,20 +296,18 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     la t2, W_imag                   # t2    = W_imag[]
 
     # Loop for Sin/Cos (Euler Formula)
-    la t0, indexVector             # Helper Vector is a vector of sequential number, hardcoded
-    vle32.v v22, 0(t0)              # v22 = {0, 1, 2, 3, 4 .. VLEN -1}
+    vid.v v22
 
     la t0, NEG_TWO_PI               # Load mem address of -2PI to t0
     flw ft1, 0(t0)                  # Load -2PI to ft1
+    mul  t0, a3, a2                 # t0 = (inverse)*N
+    fcvt.s.w ft3, t0                # ft3 = N
+    fdiv.s ft1, ft1, ft3            # ft1 = ft1 / ft3 = (inverse) -2PI *  / N
 
-    fcvt.s.w ft3, a2                # ft3 = N
-    fdiv.s ft1, ft1, ft3            # ft1 = ft1 / ft3 = -2PI *  / N
 
-    fcvt.s.w ft3, a3                # inverse
-    fmul.s ft1, ft1, ft3            # Multiply by inverse. If a3 is -1, then IFFT is done, else FFT
-
-    srai a4, a2, 1                  # a4    =   N / 2   = a / 2
     call preload_constants          # uses v1-v13 and t0
+    
+    srai a4, a2, 1                  # a4    =   N / 2   = a / 2
     vsetvli t0, a4, e32             # Vector for N/2 elements
     li t3, 0                        # t3    = i = 0
 
@@ -353,10 +339,8 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     li s0, 0                        # s0    = j     = 0
 
     lw a3, logsize                     # now a0 have logN
+    vid.v v19
 
-    vsetvli t0, a2, e32             # set vector  
-    la s2, indexVector             # First make vector of i
-    vle32.v v19, (s2)               # v18 = 0, 1, 2  VLEN-1
     forTransform:                   #int j = 0; j < logint(N); j++
     bge s0, a3, forTransformEnd     # End outer loop
     li s1, 0                        # s1 = i = 0
@@ -554,6 +538,22 @@ _finish:
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
 
 
     imag: .float 0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
@@ -572,8 +572,24 @@ _finish:
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
           .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
+          .float 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8, 1,2,3,4, 5,6,7,8
 
-    .set dataSize, 512          # THIS IS N
+    .set dataSize, 1024          # THIS IS N
 
     # DO NOT CHANGE ANYTHING AFTER THIS LINE
 
@@ -610,11 +626,6 @@ _finish:
     NEG_HALF_PI: .float -1.57079632679489661923
     ONE: .float 1
     TERMS: .word 14
-
-    indexVector:
-        .rept vectorSize
-        .word 0
-        .endr
 
     half_pi_hi:    .float 1.57079637e+0  # π/2 high part
     half_pi_lo:    .float -4.37113883e-8 # π/2 low part
