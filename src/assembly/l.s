@@ -6,13 +6,11 @@
 _start:
 
 # Initialize helper vector and load data addresses
-main:
-                              
+main:                  
     lw a0, size                     # Load size of real/imag arrays into a0
     call setlogN                    # Compute and store log2(size) for shared use by other functions
 
-
-    call initHelperVector
+    call initIndexVector
     la a0, real                     # a0 = address of real[]
     la a1, imag                     # a1 = address of imag[]
     lw a2, size                     # a2 = size of arrays (N)
@@ -25,11 +23,10 @@ main:
     call print
     j _finish 
 
-# Initialize helper vector with sequential integers (0,1,2,3..)
-initHelperVector:
-    la t0, helperVector
-    lw t1, size
-    vsetvli t2, t1, e32, m1         # Set vector length once
+# Initialize helper vector with sequential integers (0,1,2,3..). input a0 size of vector
+initIndexVector:
+    la t0, indexVector
+    vsetvli t2, a0, e32, m1         # Set vector length once
     vid.v v0                        # Generate index vector
     vse32.v v0, (t0)
     ret
@@ -57,7 +54,7 @@ setlogN:
 # Function: reverse
 # Reverses the binary digits of a 32-bit integer.
 # Inputs:
-#   - v29: Input number to reverse.
+#   - v26: Input number to reverse.
 #   - a0: Number of significant bits to reverse (optional; default 32).
 # Outputs:
 #   - v29: The reversed binary number.
@@ -66,9 +63,9 @@ setlogN:
 vReverseIndexOffset:
     # Swap odd and even bits
     li t0, 0x55555555    # Pattern for odd/even bits
-    vsrl.vi v1, v29, 1   # v29 >> 1
+    vsrl.vi v1, v26, 1   # v29 >> 1
     vand.vx v1, v1, t0   # (v29 >> 1) & 0x55555555
-    vand.vx v2, v29, t0  # v29 & 0x55555555
+    vand.vx v2, v26, t0  # v29 & 0x55555555
     vsll.vi v2, v2, 1    # (v29 & 0x55555555) << 1
     vor.vv v29, v1, v2   # Result back to v29
 
@@ -104,7 +101,7 @@ vReverseIndexOffset:
     # Save number of bits to reverse in t2
     # bits are in a7
     li t0, 30       # make is 30 instead of 32 to add shift by 2 effect
-    sub t0, t0, a0  # a0 will never be more than 30
+    sub t0, t0, a7  # a7 will never be more than 30
     vsrl.vx v29, v29, t0
     
     ret                            # Return with result in v29
@@ -141,6 +138,7 @@ preload_constants:
     flw     fs11, 44(t0)            # Load 8.33338592e-3 into fs11
     flw     ft11, 48(t0)            # Load -1.66666672e-1 into ft11
 
+
     vfmv.v.f v1, fs0
     vfmv.v.f v2, fs1
     vfmv.v.f v3, fs2
@@ -154,6 +152,7 @@ preload_constants:
     vfmv.v.f v11, fs10
     vfmv.v.f v12, fs11
     vfmv.v.f v13, ft11
+    fcvt.s.w ft11, zero
 
     ret
 
@@ -185,14 +184,14 @@ preload_constants:
 v_sin_cos_approx:
 
     # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
-    vmv.v.v   v15, v4 # move 12582912 to v15 
+    vmv.v.v   v15, v4 # move 12582912 to v15  because 
     vfmacc.vv  v15, v21, v3 # a(v21))*6.36619747e-1f(v3) + 12582912.f(v15)
     vfsub.vf    v15, v15, fs3   # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
 
     vfnmsac.vv v21, v15, v1   #  a = fmaf (j, -half_pi_hi, a);
     vfnmsac.vv v21, v15, v2   #  a = fmaf (j, -half_pi_lo, a);
 
-    vfcvt.rtz.x.f.v v19, v15          #  i = (int) j
+    vfcvt.x.f.v v19, v15          #  i = (int) j
     vadd.vi v20, v19, 1               # ic = i + 1
 
     vfmul.vv  v17, v21, v21          # ft2 = a * a (sa)
@@ -213,7 +212,6 @@ v_sin_cos_approx:
     vfmadd.vv   v16, v18, v21      # s = s * t + a
 
     # Check the value of i and adjust the order of sine and cosine if needed
-    fcvt.s.w ft11, zero
     vand.vi v0, v19, 1                     # v0 = i & 1
     vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
 
@@ -223,84 +221,72 @@ v_sin_cos_approx:
  
     vand.vi v0, v19, 2                   # t0 = i & 2
     vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
-
     vfsgnjn.vv v30,v30,v30, v0.t     # negate rs where i&2 is true
 
     vand.vi v0, v20, 2                   # t1 = ic & 2
     vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
-
     vfsgnjn.vv v31,v31,v31, v0.t                  # Negate cosine if ic & 2 != 0
 
     ret                              # Return with sine in v30, cosine in v31
 
 
 vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all temp registers maybe. i havent checked
-    addi sp, sp, -36                # Make space to save registers used
-    sw a0, 0(sp)
+    addi sp, sp, -8                # Make space to save registers used
+    sw a7, 0(sp)
     sw ra, 4(sp)
-    sw a3, 12(sp)
-    sw a4, 16(sp)
 
-
-    mv t5, a0                       # t4 = real address
-    mv t6, a1                       # t5 = imag
-    la a3, real_temp                # a3    = real_temp[] pointer
-    la a4, imag_temp                # a4    = imag_temp[] pointer 
-    lw a0, logsize
-    vsetvli a6, a2, e32, m1         # Request vector for a2 length
+    la t4, real_temp                # t4    = real_temp[] pointer
+    la t5, imag_temp                # t5    = imag_temp[] pointer 
+    lw a7, logsize
     
-    la t1, helperVector             # Load addres of vector 0,1,2,3... 
-    vle32.v v26, 0(t1)              # v26 = <i> = {0, 1, 2, ... VLEN-1} => {i, i+1, i+2, ... i + VLEN - 1}
+    vsetvli t3, a2, e32, m1         # Request vector for a2 length
+    vid.v  v26      # v26 = <i> = {0, 1, 2, ... VLEN-1} => {i, i+1, i+2, ... i + VLEN - 1}
 
-    li t3, 0                        # t1 = i = 0
+    li t2, 0                        # t1 = i = 0
     vOrdinaLoop:                    # Loop which will run N/VLEN times, solving simultanously VLEN elements 
-    bge t3, a2, endVOrdinaLoop      # break when t3 >= num of elements as all required elemetns have been operated on
+    bge t2, a2, endVOrdinaLoop      # break when t3 >= num of elements as all required elemetns have been operated on
 
-    # Call vReverseIndexOffset. Uses t0, v1, v2
-    vmv.v.v v29, v26                # v29 = v26 = <i> for vReverseIndexOffset input
+    # reverse uses t0, v1, v2. Input/output in v26
     call vReverseIndexOffset                   # Now V29 have rev(N, <i>), Keep it there for later use 
 
-    # Generate Index Offset
-    vsll.vi v27, v26, 2             
-
     # Load from normal array reversed indexed
-    vloxei32.v v23, 0(t5), v29      # Load into v23 real[rev_index] 
-    vloxei32.v v24, 0(t6), v29      # Load into v24 imag[rev_index]
+    vloxei32.v v23, 0(a0), v29      # Load into v23 real[rev_index] 
+    vloxei32.v v24, 0(a1), v29      # Load into v24 imag[rev_index]
+
+    # Generate Index Offset
+    vsll.vi v27, v26, 2   
 
     # Save to temp array normal index
-    vsoxei32.v v23, 0(a3) , v27             # real_temp[i] = real[rev_index];
-    vsoxei32.v v24, 0(a4)  , v27            # imag_temp[i] = imag[rev_index];
+    vsoxei32.v v23, 0(t4), v27            # real_temp[i] = real[rev_index];
+    vsoxei32.v v24, 0(t5), v27            # imag_temp[i] = imag[rev_index];
 
     # Increment
-    vadd.vx v26, v26, a6            # adds VLEN to helperVector, so all indexes increase by VLEN
-    add t3, t3, a6                  # i = i + VLEN   
+    vadd.vx v26, v26, t3            # adds VLEN to indexVector, so all indexes increase by VLEN
+    add t2, t2, t3                  # i = i + VLEN   
     j vOrdinaLoop
     endVOrdinaLoop:
 
-    la t1, helperVector             # Load addres of vector 0,1,2,3... 
-    vle32.v v26, 0(t1)              # v26 = <j> = {0, 1, 2, ... VLEN-1} => {i, i+1, i+2, ... i + VLEN - 1}
-
+    vid.v v26
+    
     li t1, 0                        # t1    = j     = 0
     vOrdinaLoop2:                   # loop from 0 to size of array N
     bge t1, a2, endvOrdinaLoop2     # break when j >= N
 
     vsll.vi v27, v26, 2                  # Multiply i by 4 to get starting offset
-    vloxei32.v v23, 0(a3) ,v27             # v23 = real_temp[i]
-    vloxei32.v v24, 0(a4), v27              # v24 = imag_temp[i]
+    vloxei32.v v23, 0(t4) ,v27             # v23 = real_temp[i]
+    vloxei32.v v24, 0(t5), v27              # v24 = imag_temp[i]
 
-    vsoxei32.v v23, 0(t5) , v27             # real[i] = realtemp[i], well its j but nvm
-    vsoxei32.v v24, 0(t6), v27
-    vadd.vx v26, v26, a6            # adds VLEN to helperVector, so all indexes increase by VLEN
+    vsoxei32.v v23, 0(a0) , v27             # real[i] = realtemp[i], well its j but nvm
+    vsoxei32.v v24, 0(a1), v27
+    vadd.vx v26, v26, t3            # adds VLEN to indexVector, so all indexes increase by VLEN
 
-    add t1, t1, a6                  # i = i + VLEN
+    add t1, t1, t3                  # i = i + VLEN
     j vOrdinaLoop2              
     endvOrdinaLoop2:
 
-    lw a0, 0(sp)
+    lw a7, 0(sp)
     lw ra, 4(sp)
-    lw a3, 12(sp)
-    lw a4, 16(sp)
-    addi sp, sp, 36                # We use 9 registers in this one
+    addi sp, sp, 8                # We use 9 registers in this one
 
     jr ra
 
@@ -317,7 +303,7 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     la t2, W_imag                   # t2    = W_imag[]
 
     # Loop for Sin/Cos (Euler Formula)
-    la t0, helperVector             # Helper Vector is a vector of sequential number, hardcoded
+    la t0, indexVector             # Helper Vector is a vector of sequential number, hardcoded
     vle32.v v22, 0(t0)              # v22 = {0, 1, 2, 3, 4 .. VLEN -1}
 
     la t0, NEG_TWO_PI               # Load mem address of -2PI to t0
@@ -339,17 +325,17 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     bge t3, a4, endvsincosloop      # as soon as num element t0 >= N/2, break
 
     vadd.vx v23, v22, t3            # v23 = v22 + i => {i, i+1, i+2, ..., i + VLEN -1}. Rn its i integer
-    vfcvt.f.x.v v21, v23            # Convert helperVector 0,1,2 to floats.                     i float
+    vfcvt.f.x.v v21, v23            # Convert indexVector 0,1,2 to floats.                     i float
     vfmul.vf v21, v21, ft1          # v21[i] = (inverse * -2.0 * PI  / N )*  i . Now we need cos and sins of this
 
     # input in v21
-    call v_sin_cos_approx                     # v31 = sin(v21)
+    call v_sin_cos_approx          
     # sin in 30, cos in 31
 
     # Now, we have vector having cos, sin. Now we save to W_real, W_imag
     vsll.vi v23, v23, 2
     vsoxei32.v v31, 0(t1), v23              # W_real[i] = myCos(value);
-    vsoxei32.v v30, 0(t2)  , v23            # W_imag[i] = mySin(value); hopefully this works
+    vsoxei32.v v30, 0(t2), v23            # W_imag[i] = mySin(value); hopefully this works
 
     add t3, t3, t0                  # i +=  VLEN
     j vsincosloop
@@ -358,14 +344,13 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     ##NOW STARTING NESTED LOOP
 
     li a5, 1                        # a5    = n     = 1
-    lw a2, size
     srai a4, a2, 1                  # a4    = a     = N / 2
     li s0, 0                        # s0    = j     = 0
 
     lw a3, logsize                     # now a0 have logN
 
     vsetvli t0, a2, e32             # set vector  
-    la s2, helperVector             # First make vector of i
+    la s2, indexVector             # First make vector of i
     vle32.v v19, (s2)               # v18 = 0, 1, 2  VLEN-1
     forTransform:                   #int j = 0; j < logint(N); j++
     bge s0, a3, forTransformEnd     # End outer loop
@@ -621,7 +606,7 @@ _finish:
     ONE: .float 1
     TERMS: .word 14
 
-    helperVector:
+    indexVector:
         .rept vectorSize
         .word 0
         .endr
