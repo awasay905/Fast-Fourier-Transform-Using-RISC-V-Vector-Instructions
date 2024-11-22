@@ -141,6 +141,20 @@ preload_constants:
     flw     fs11, 44(t0)            # Load 8.33338592e-3 into fs11
     flw     ft11, 48(t0)            # Load -1.66666672e-1 into ft11
 
+    vfmv.v.f v1, fs0
+    vfmv.v.f v2, fs1
+    vfmv.v.f v3, fs2
+    vfmv.v.f v4, fs3
+    vfmv.v.f v5, fs4
+    vfmv.v.f v6, fs5
+    vfmv.v.f v7, fs6
+    vfmv.v.f v8, fs7
+    vfmv.v.f v9, fs8
+    vfmv.v.f v10, fs9
+    vfmv.v.f v11, fs10
+    vfmv.v.f v12, fs11
+    vfmv.v.f v13, ft11
+
     ret
 
 
@@ -149,182 +163,75 @@ preload_constants:
 # Calculates sin and cos of the float using chebishev polynomial
 # Taken from stackoverflow
 # Input:
-#   - v30 = angle (a) in radians
+#   - a = v21 = angle (a) in radians
 # Output:
-#   - v30 = sin() (approximation)
-#   - v31 = cos() (approximation)
+#   - rs = v30 = sin() (approximation)
+#   - rc = v31 = cos() (approximation)
 # Clobbers:
 #   - t0, t1, ft0, ft1, ft2, ft3
+# Can not write to v22, v23, v1-v13
 # Help:
-#   - i = v2 , ic = v3, j = v1, a = v30, sa = v4, c = v5 t = ft3, temp = v4
-sin_cos_approx:
+#   c = v14
+#   j = v15
+#   a = v21
+#   rs = v30
+#   rc = v31
+#   s = v16
+#   sa = v17
+#   t = v18
+#   i = v19 
+#   ic = v20, 
+
+v_sin_cos_approx:
+
     # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
-    vfmv.vf   v1, fs3           # Loads fs3 to v1. we need it for fma for accuracy
-    vfmacc.vf  v1, fs2, v30
-    vfsub.vf  v1, v1, fs3                
+    vmv.v.v   v15, v4 # move 12582912 to v15 
+    vfmacc.vv  v15, v21, v3 # a(v21))*6.36619747e-1f(v3) + 12582912.f(v15)
+    vfsub.vf    v15, v15, fs3   # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
 
-    vfnmsac.vf   v30,  fs0, v1       # a = a - j * half_pi_hi
-    vfnmsac.vf   v30,  fs1, v1       # a = a - j * half_pi_lo
+    vfnmsac.vv v21, v15, v1   #  a = fmaf (j, -half_pi_hi, a);
+    vfnmsac.vv v21, v15, v2   #  a = fmaf (j, -half_pi_lo, a);
 
-    vfcvt.rtz.x.f.v v2, v1           #  i = (int) j
-    vadd.vi v3, v2, 1               # ic = i + 1
+    vfcvt.rtz.x.f.v v19, v15          #  i = (int) j
+    vadd.vi v20, v19, 1               # ic = i + 1
 
-    vfmul.vv  v4, v30, v30          # ft2 = a * a (sa)
+    vfmul.vv  v17, v21, v21          # ft2 = a * a (sa)
 
     # Approximate cosine.
-    vfmv.vf   v4, fs4
-    fmadd.s   v30, fs4, ft2, fs5     # c = c * sa + -1.38877297e-3
-    fmadd.s   v30, v30, ft2, fs6     # c = c * sa + 4.16666567e-2
-    fmadd.s   v30, v30, ft2, fs7     # c = c * sa + -0.5
-    fmadd.s   v30, v30, ft2, fs8     # c = c * sa + 1.0
+    vmv.v.v   v14, v5  # c =               2.44677067e-5f; # why am i even doing this i can diretcly move flaot to vector splat
+    vfmadd.vv v14, v17, v6     # c = c * sa + -1.38877297e-3
+    vfmadd.vv v14, v17, v7     # c = c * sa + 4.16666567e-2
+    vfmadd.vv v14, v17, v8     # c = c * sa + -0.5
+    vfmadd.vv v14, v17, v9     # c = c * sa + 1.0
 
     # Approximate sine. By default save it to v31
-    fmadd.s   v31, fs9, ft2, fs10     # s = s * sa + -1.98559923e-4
-    fmadd.s   v31, v31, ft2, fs11     # s = s * sa + 8.33338592e-3
-    fmadd.s   v31, v31, ft2, ft11     # s = s * sa + -0.166666672
-    fmul.s    ft3, ft1, ft2           # t = a * sa
-    fmadd.s   v31, v31, ft3, ft1      # s = s * a
+    vmv.v.v     v16, v10          # v16 = 2.86567956e-6f
+    vfmadd.vv   v16, v17, v11     # s = s * sa + -1.98559923e-4
+    vfmadd.vv   v16, v17, v12     # s = s * sa + 8.33338592e-3
+    vfmadd.vv   v16, v17, v13     # s = s * sa + -0.166666672
+    vfmul.vv    v18, v21, v17          # t = a * sa
+    vfmadd.vv   v16, v18, v21      # s = s * t + a
 
     # Check the value of i and adjust the order of sine and cosine if needed
-    andi t2, t0, 1                     # t2 = i & 1
-    beqz t2, ifsincos                   # If i & 1 == 0, jump to ifsincos
-    j adjust_sign                       # Jump to adjust_sign
+    fcvt.s.w ft11, zero
+    vand.vi v0, v19, 1                     # v0 = i & 1
+    vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
 
-    ifsincos:
-        fmv.s ft0, v30                  # Swap sine and cosine
-        fmv.s v30, v31
-        fmv.s v31, ft0
+    #Now we merge c(v14) and s(v16) to rc(v31) and rs(v30)
+    vmerge.vvm v30, v16, v14, v0  #v0.mask[i] ? v14[i] : v16[i]
+    vmerge.vvm v31, v14, v16, v0  #v0.mask[i] ? v14[i] : v16[i]
+ 
+    vand.vi v0, v19, 2                   # t0 = i & 2
+    vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
 
-    adjust_sign:
-        andi t0, t0, 2                  # t0 = i & 2
-        beqz t0, sign1done               # If i & 2 == 0, skip sign flip
-        fneg.s v30, v30                  # Negate sine if i & 2 != 0
+    vfsgnjn.vv v30,v30,v30, v0.t     # negate rs where i&2 is true
 
-    sign1done:
-        andi t1, t1, 2                  # t1 = ic & 2
-        beqz t1, sign2done              # If ic & 2 == 0, skip sign flip
-        fneg.s v31, v31                  # Negate cosine if ic & 2 != 0
+    vand.vi v0, v20, 2                   # t1 = ic & 2
+    vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
 
-    sign2done:
-        ret                              # Return with sine in v30, cosine in v31
+    vfsgnjn.vv v31,v31,v31, v0.t                  # Negate cosine if ic & 2 != 0
 
-
-# Input:  v31 = angles in radians
-# Output: v31 = sine values
-vMySin:       # Uses t0, t1, ft0, ft1, ft2
-    # all vectors except v20, v21 and v22 are free to use
-    # Range Reduction
-    la t0, NEG_HALF_PI              # t0 = *NEG_HALF_PI
-    la t1, NEG_PI                   # t1 = *NEG_PI
-    flw ft1, 0(t0)                  # ft1 = NEG_HALF_PI
-    flw ft2, 0(t1)                  # ft2 = NEG_PI
-
-    vmflt.vf v0, v31, ft1          # compares if x<NEG_HALF_PI and set true bits in mask
-    ## NOW WE DO THE IF CONDITION
-    vfrsub.vf v31, v31, ft2, v0.t  # v31 = -PI - x . for the if = condition x < neg_half_pi
-
-    ## NOW CLEAR MARK AND CHECK FOR OTHER CONDITION
-    vmnot.m v0, v0
-    ## NEGATE NEG_HALF_PI and NEG_PI
-    fneg.s  ft1, ft1            # ft1 = HALF_PI
-    fneg.s ft2, ft2             # ft2 = PI
-    vmfgt.vf v0, v31, ft1, v0.t          # compares if x>HALF_PI and set true bits in mask
-    
-    ## Now we do if condition
-    vfrsub.vf v31, v31, ft2, v0.t  # v31 = PI - x for the if condition
-
-
-    vfmul.vv v2, v31, v31           # v2 = x2 = x*x
-    vfneg.v v2, v2                  # v2 = -x2
-    vmv.v.v v3, v31                # v3   = term  = x
-    # sum = v31
-    li t0, 1                    # t0    = i  = 1
-    fcvt.s.w ft1, t0 # ft1 = 1      # ft1 = factorial = 1
-
-    lw t1, TERMS              # t1 = TERMS
-    vSinFor:                        # for loop i <= 2*TERMS + 1
-    bgt t0, t1, vSinForEnd          # Break when i > 2*TERMS + 1
-
-    # only t0 and t1 used till here. v2, v3, v4,  v31 used
-    slli t4, t0, 1                  # i*2 = t4
-    addi t5, t4, 1                  # i*2 + 1 = t5
-    mul t5, t5, t4                  # (i*2) * (i*2 + 1)  
-    fcvt.s.w ft2, t5                # converts above to float
-    fmul.s ft1, ft1, ft2            # factorial = facotial*
-
-    # now t4, t5, ft2 free    
-    vfmul.vv v3, v3, v2             # term = teerm * -x2
-    # v5 free
-    vfdiv.vf v5, v3, ft1
-    vfadd.vv v31, v31, v5
-
-    addi t0, t0, 1                  # i     = i + 1
-    j vSinFor
-    vSinForEnd:
-    vmv.v.v v19, v31
-
-    jr ra                           # Return to caller
-
-# Input:  v30 = angles in radians
-# Output: v30 = cosine values
-vMyCos:                     # Takes input v30 of floats, and vector length a0. Returns cos(v30) in v30
-    vmv.v.i v1, 1           # v1 = sign = 1
-    # all vectors except v20, v21 and v22 are free to use
-    # Range Reduction
-    la t0, NEG_HALF_PI              # t0 = *NEG_HALF_PI
-    la t1, NEG_PI
-    flw ft1, 0(t0)                  # ft1 = NEG_HALF_PI
-    flw ft2, 0(t1)
-
-    vmflt.vf v0, v30, ft1          # compares if x<NEG_HALF_PI and set true bits in mask
-    ## NOW WE DO THE IF CONDITION
-    vfrsub.vf v30, v30, ft2, v0.t  # v30 = -PI - x . for the if = condition x < neg_half_pi
-    vrsub.vx v1, v1, zero, v0.t # v1[i] = 0 - v1[i]  // negate for sign
-
-    ## NOW CLEAR MARK AND CHECK FOR OTHER CONDITION
-    fneg.s ft1, ft1     # ft1 = HALF_PI
-    fneg.s ft2, ft2     # ft2 = PI
-    vmnot.m v0, v0
-    vmfgt.vf v0, v30, ft1, v0.t          # compares if x>HALF_PI and set true bits in mask
-    
-    ## Now we do if condition
-    vfrsub.vf v30, v30, ft2, v0.t  # v30 = PI - x for the if condition
-    vrsub.vx v1, v1, zero, v0.t # v1[i] = 0 - v1[i]  // negate for sign
-
-
-    vfmul.vv v2, v30, v30           # v2 = x2 = x*x
-    vfsgnjn.vv v2,v2,v2             # negates x2. v2 = -x2
-    li t0, 1
-    fcvt.s.w ft1, t0 # t0 = 1       # ft1 = factorial = 1
-    vfmv.v.f v3, ft1                # v3   = term  = 1
-    vfmv.v.f v30, ft1                # v30   = sum   = 1
-
-    lw t1, TERMS                  # t1 = TERMS
-    vCosFor:                        # for loop i <= 2*TERMS + 1
-    bgt t0, t1, vCosForEnd          # Break when i > 2*TERMS + 1
-
-    # only t0 and t1 used till here. v2, v3, v4,  v31 used
-    slli t4, t0, 1                  # i*2 = t4
-    addi t5, t4, -1                  # i*2 - 1 = t5
-    mul t5, t5, t4                  # (i*2) * (i*2 - 1)  
-    fcvt.s.w ft2, t5                # converts above to float
-    fmul.s ft1, ft1, ft2            # factorial = facotial*
-
-    # now t4, t5, ft2 free    
-    vfmul.vv v3, v3, v2
-    # v5 free
-    vfdiv.vf v5, v3, ft1
-    vfadd.vv v30, v30, v5
-
-    addi t0, t0, 1                  # i     = i + 2
-    j vCosFor
-    vCosForEnd:
-    
-    vfcvt.f.x.v v1, v1  # converts sign to float
-    vfmul.vv v20, v30, v1
-
-    jr ra                           # Return to caller
-
+    ret                              # Return with sine in v30, cosine in v31
 
 
 vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all temp registers maybe. i havent checked
@@ -405,8 +312,6 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
 
     call vOrdina                    # Call Vectorized Ordina.
 
-    lw ra, 0(sp)                    # Restore return address
-    addi sp, sp, 4                  # Stack restored
 
     la t1, W_real                   # t1    = W_real[]
     la t2, W_imag                   # t2    = W_imag[]
@@ -425,8 +330,11 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     fmul.s ft1, ft1, ft3            # Multiply by inverse. If a3 is -1, then IFFT is done, else FFT
 
     srai a4, a2, 1                  # a4    =   N / 2   = a / 2
+    call preload_constants          # uses v1-v13 and t0
     vsetvli t0, a4, e32             # Vector for N/2 elements
     li t3, 0                        # t3    = i = 0
+
+
     vsincosloop:                    # for loop i = 0; i < N / 2;
     bge t3, a4, endvsincosloop      # as soon as num element t0 >= N/2, break
 
@@ -434,42 +342,23 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vfcvt.f.x.v v21, v23            # Convert helperVector 0,1,2 to floats.                     i float
     vfmul.vf v21, v21, ft1          # v21[i] = (inverse * -2.0 * PI  / N )*  i . Now we need cos and sins of this
 
-    addi sp, sp, -24                 # Save return address for funtion call + registers sued for loop
-    fsw ft1, 0(sp)
-    sw t3, 4(sp)
-    sw ra, 8(sp)
-    sw t1, 12(sp)
-    sw t2, 16(sp)
-    sw t0, 20(sp)
-
-    vmv.v.v v30, v21                # Load v21 to v30 to pass to myCos
-    call vMyCos                     # v30 = cos(v21) 
-
-    vmv.v.v v31, v21                # Load v21 to v31 to pass to mySin
-    call vMySin                     # v31 = sin(v21)
-
-    flw ft1, 0(sp)
-    lw t3, 4(sp)
-    lw ra, 8(sp)
-    lw t1, 12(sp)
-    lw t2, 16(sp)
-    lw t0, 20(sp)
-    addi sp, sp, 24
-
-
+    # input in v21
+    call v_sin_cos_approx                     # v31 = sin(v21)
+    # sin in 30, cos in 31
 
     # Now, we have vector having cos, sin. Now we save to W_real, W_imag
     vsll.vi v23, v23, 2
-    vsoxei32.v v20, 0(t1), v23              # W_real[i] = myCos(value);
-    vsoxei32.v v19, 0(t2)  , v23            # W_imag[i] = mySin(value); hopefully this works
+    vsoxei32.v v31, 0(t1), v23              # W_real[i] = myCos(value);
+    vsoxei32.v v30, 0(t2)  , v23            # W_imag[i] = mySin(value); hopefully this works
 
     add t3, t3, t0                  # i +=  VLEN
     j vsincosloop
     endvsincosloop:
-    
+   
     ##NOW STARTING NESTED LOOP
 
     li a5, 1                        # a5    = n     = 1
+    lw a2, size
     srai a4, a2, 1                  # a4    = a     = N / 2
     li s0, 0                        # s0    = j     = 0
 
@@ -480,7 +369,6 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vle32.v v19, (s2)               # v18 = 0, 1, 2  VLEN-1
     forTransform:                   #int j = 0; j < logint(N); j++
     bge s0, a3, forTransformEnd     # End outer loop
-  
     li s1, 0                        # s1 = i = 0
     
     mul s5, a5, a4                  # s5 = n*a  // shfted it out of loop
@@ -540,7 +428,10 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     addi s0, s0, 1                  # j++
     j forTransform
     forTransformEnd:
+   
 
+    lw ra, 0(sp)                    # Restore return address
+    addi sp, sp, 4                  # Stack restored
     jr ra
 
 
