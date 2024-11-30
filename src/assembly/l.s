@@ -491,26 +491,31 @@ vIFFT:                      # Takes real a0, imag in a1, and N a2. USES t0-4 and
 #   - a0: Base address of real[] array
 #   - a1: Base address of imag[] array
 #   - a2: Size of array i.e. number of elements to log
-# Clobbers: t0,t1, t2, ft0, ft1.
-print:                      
+# Clobbers: t0,t1, t2,t3 ft0, ft1.
+print:        
+    addi sp, sp, -8
+    sw a0, 0(sp)
+    sw a1, 4(sp)    
+              
     li t0, 0x123456                 # Pattern for help in python script
     li t0, 0x234567                 # Pattern for help in python script
     li t0, 0x345678                 # Pattern for help in python script
 
-    la t1, real                       # Move address to temp register to avoid stacking
-    la t2, imag                       # Move address to temp register to avoid stacking
 	li t0, 0		                # load i = 0
+
+    vsetvli t3, a2, e32             # Set vlen to a2, save VLEN in t3
+    slli t4, t3, 2                  # vlen*4 for address incre,net
 
     printloop:
     bge t0, a2, endPrintLoop        # Exit loop if i >= size
 
-    flw ft0, 0(t1)                  # Load real[i] into fa0
-    flw ft1, 0(t2)                  # Load imag[i] into fa1
+    vle32.v v1, 0(a0)                  # Load real[i] into v1
+    vle32.v v1, 0(a1)                  # Load imag[i] into v1
 
-    addi t1, t1, 4                  # Increment pointer for real[]
-    addi t2, t2, 4                  # Increment pointer for imag[]
+    add a0, a0, t4                  # Increment pointer for real[] by VLEN*4
+    add a1, a1, t4                  # Increment pointer for imag[] by VLEN*4
 
-    addi t0, t0, 1                  # Increment index
+    add t0, t0, t3                  # Increment index
     j printloop                     # Jump to start of loop
     endPrintLoop:
 
@@ -518,6 +523,10 @@ print:
     li t0, 0x234567                 # Pattern for help in python script
     li t0, 0x345678                 # Pattern for help in python script
 	
+    lw a0, 0(sp)
+    lw a1, 4(sp) 
+    addi sp, sp, 8
+
 	jr ra
 
 
