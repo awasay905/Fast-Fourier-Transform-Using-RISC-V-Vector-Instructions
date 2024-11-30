@@ -51,7 +51,7 @@ setlogN:
 #   - v29: The reversed binary number.
 # Clobbers:
 #   - t0, v1, v2
-# Assumes that mask (0x55555555,0x33333333,0x0F0F0F0F, 0x00FF00FF  ) and shift(30) are saved in s1,s2,s3,s4, s5
+# Assumes that mask (0x55555555,0x33333333,0x0F0F0F0F, 0x00FF00FF  ) and amoutn to shift(30) are saved in s1,s2,s3,s4, s5
 vReverseIndexOffset:
     # Swap odd and even bits
     vsrl.vi v1, v26, 1   # v29 >> 1
@@ -86,10 +86,8 @@ vReverseIndexOffset:
     vsll.vi v2, v29, 16      # v29 << 16
     vor.vv v29, v1, v2        # Final result in v29
 
-    # Save number of bits to reverse in t2
-    # bits are in a7
-    sub t0, s5, a7  # a7 will never be more than 30
-    vsrl.vx v29, v29, t0
+    # Shift by the req bit size
+    vsrl.vx v29, v29, s5
     
     ret                            # Return with result in v29
 
@@ -238,6 +236,9 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     li s3, 0x0F0F0F0F
     li s4, 0x00FF00FF  
     li s5, 30        # mask is 30 instead of 32 to add shift by 2 effect
+    # Save number of bits to reverse in s5
+    # bits(logN) are in a7
+    sub s5, s5, a7  # a7 will never be more than 30
 
     li t2, 0                        # t1 = i = 0
     vOrdinaLoop:                    # Loop which will run N/VLEN times, solving simultanously VLEN elements 
