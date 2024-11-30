@@ -51,36 +51,33 @@ setlogN:
 #   - v29: The reversed binary number.
 # Clobbers:
 #   - t0, v1, v2
+# Assumes that mask (0x55555555,0x33333333,0x0F0F0F0F, 0x00FF00FF  ) are saved in s1,s2,s3,s4
 vReverseIndexOffset:
     # Swap odd and even bits
-    li t0, 0x55555555    # Pattern for odd/even bits
     vsrl.vi v1, v26, 1   # v29 >> 1
-    vand.vx v1, v1, t0   # (v29 >> 1) & 0x55555555
-    vand.vx v2, v26, t0  # v29 & 0x55555555
+    vand.vx v1, v1, s1   # (v29 >> 1) & 0x55555555
+    vand.vx v2, v26, s1  # v29 & 0x55555555
     vsll.vi v2, v2, 1    # (v29 & 0x55555555) << 1
     vor.vv v29, v1, v2   # Result back to v29
 
     # Swap consecutive pairs
-    li t0, 0x33333333    # Pattern for pairs
     vsrl.vi v1, v29, 2       # v29 >> 2
-    vand.vx v1, v1, t0       # (v29 >> 2) & 0x33333333
-    vand.vx v2, v29, t0       # v29 & 0x33333333
+    vand.vx v1, v1, s2       # (v29 >> 2) & 0x33333333
+    vand.vx v2, v29, s2       # v29 & 0x33333333
     vsll.vi v2, v2, 2       # (v29 & 0x33333333) << 2
     vor.vv v29, v1, v2        # Result back to v29
 
     # Swap nibbles
-    li t0, 0x0F0F0F0F    # Pattern for nibbles
     vsrl.vi v1, v29, 4       # v29 >> 4
-    vand.vx v1, v1, t0       # (v29 >> 4) & 0x0F0F0F0F
-    vand.vx v2, v29, t0       # v29 & 0x0F0F0F0F
+    vand.vx v1, v1, s3       # (v29 >> 4) & 0x0F0F0F0F
+    vand.vx v2, v29, s3       # v29 & 0x0F0F0F0F
     vsll.vi v2, v2, 4       # (v29 & 0x0F0F0F0F) << 4
     vor.vv v29, v1, v2        # Result back to v29
 
     # Swap bytes
-    li t0, 0x00FF00FF    # Pattern for bytes
     vsrl.vi v1, v29, 8       # v29 >> 8
-    vand.vx v1, v1, t0       # (v29 >> 8) & 0x00FF00FF
-    vand.vx v2, v29, t0       # v29 & 0x00FF00FF
+    vand.vx v1, v1, s4       # (v29 >> 8) & 0x00FF00FF
+    vand.vx v2, v29, s4       # v29 & 0x00FF00FF
     vsll.vi v2, v2, 8       # (v29 & 0x00FF00FF) << 8
     vor.vv v29, v1, v2        # Result back to v29
 
@@ -220,9 +217,13 @@ v_sin_cos_approx:
 
 
 vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all temp registers maybe. i havent checked
-    addi sp, sp, -8                # Make space to save registers used
+    addi sp, sp, -24                # Make space to save registers used
     sw a7, 0(sp)
     sw ra, 4(sp)
+    sw s1, 8(sp)
+    sw s2, 12(sp)
+    sw s3, 16(sp)
+    sw s4, 20(sp)
 
     la t4, real_temp                # t4    = real_temp[] pointer
     la t5, imag_temp                # t5    = imag_temp[] pointer 
@@ -230,6 +231,12 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     
     vsetvli t3, a2, e32, m1         # Request vector for a2 length
     vid.v  v26      # v26 = <i> = {0, 1, 2, ... VLEN-1} => {i, i+1, i+2, ... i + VLEN - 1}
+
+    # Load mask for reverse. This will reducded unnecesaary loadigs in loop
+    li s1, 0x55555555
+    li s2, 0x33333333
+    li s3, 0x0F0F0F0F
+    li s4, 0x00FF00FF  
 
     li t2, 0                        # t1 = i = 0
     vOrdinaLoop:                    # Loop which will run N/VLEN times, solving simultanously VLEN elements 
@@ -280,7 +287,11 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
 
     lw a7, 0(sp)
     lw ra, 4(sp)
-    addi sp, sp, 8                # We use onlt 2 registers in this one
+    lw s1, 8(sp)
+    lw s2, 12(sp)
+    lw s3, 16(sp)
+    lw s4, 20(sp)
+    addi sp, sp, 24                # We use onlt 2 registers in this one
 
     jr ra
 
