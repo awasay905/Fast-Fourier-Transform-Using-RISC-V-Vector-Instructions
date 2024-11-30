@@ -51,7 +51,7 @@ setlogN:
 #   - v29: The reversed binary number.
 # Clobbers:
 #   - t0, v1, v2
-# Assumes that mask (0x55555555,0x33333333,0x0F0F0F0F, 0x00FF00FF  ) are saved in s1,s2,s3,s4
+# Assumes that mask (0x55555555,0x33333333,0x0F0F0F0F, 0x00FF00FF  ) and shift(30) are saved in s1,s2,s3,s4, s5
 vReverseIndexOffset:
     # Swap odd and even bits
     vsrl.vi v1, v26, 1   # v29 >> 1
@@ -88,8 +88,7 @@ vReverseIndexOffset:
 
     # Save number of bits to reverse in t2
     # bits are in a7
-    li t0, 30       # make is 30 instead of 32 to add shift by 2 effect
-    sub t0, t0, a7  # a7 will never be more than 30
+    sub t0, s5, a7  # a7 will never be more than 30
     vsrl.vx v29, v29, t0
     
     ret                            # Return with result in v29
@@ -217,13 +216,14 @@ v_sin_cos_approx:
 
 
 vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all temp registers maybe. i havent checked
-    addi sp, sp, -24                # Make space to save registers used
+    addi sp, sp, -28                # Make space to save registers used
     sw a7, 0(sp)
     sw ra, 4(sp)
     sw s1, 8(sp)
     sw s2, 12(sp)
     sw s3, 16(sp)
     sw s4, 20(sp)
+    sw s5, 24(sp)
 
     la t4, real_temp                # t4    = real_temp[] pointer
     la t5, imag_temp                # t5    = imag_temp[] pointer 
@@ -237,6 +237,7 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     li s2, 0x33333333
     li s3, 0x0F0F0F0F
     li s4, 0x00FF00FF  
+    li s5, 30        # mask is 30 instead of 32 to add shift by 2 effect
 
     li t2, 0                        # t1 = i = 0
     vOrdinaLoop:                    # Loop which will run N/VLEN times, solving simultanously VLEN elements 
@@ -291,7 +292,8 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     lw s2, 12(sp)
     lw s3, 16(sp)
     lw s4, 20(sp)
-    addi sp, sp, 24                # We use onlt 2 registers in this one
+    lw s5, 24(sp)
+    addi sp, sp, 28                # We use onlt 2 registers in this one
 
     jr ra
 
@@ -496,7 +498,7 @@ print:
     addi sp, sp, -8
     sw a0, 0(sp)
     sw a1, 4(sp)    
-              
+
     li t0, 0x123456                 # Pattern for help in python script
     li t0, 0x234567                 # Pattern for help in python script
     li t0, 0x345678                 # Pattern for help in python script
