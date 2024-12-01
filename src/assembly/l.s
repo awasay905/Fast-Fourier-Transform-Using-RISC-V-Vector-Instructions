@@ -371,8 +371,7 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     # v20 is i
     #v21 is i*4
     #v24 is i+n
-    # s3 is vlen*4
-    slli s3, t0, 2
+    
     vsll.vi v21, v19, 2  # index*4
     vadd.vx v24, v19, a5  # i + n
     vsll.vi v24, v24, 2     # (i+n)*4
@@ -387,24 +386,26 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vinnerloop:                     # for i = 0; i < N
     bge s1, a2, vinnerloopend       # i  >= num elemenets
     
-    vand.vx v18, v21, a6            # v1 & n = (i & n), (i+1 & n), .... (i + VLEN -1   & n)
+    # Calculating mask
+    vand.vx v18, v21, a6            # v1>>2 & n>>2 = (i & n), (i+1 & n), .... (i + VLEN -1   & n)
     vmseq.vx v0, v18, zero         # if (!(i & n)) which means this loop work only when result is 0,
-    # THIS IS THE IF BLOCK. EVERY OPERATION WILL BE MASKED wrt v0
+    # Start of If block. Every operation is masked wrt v0
 
-    vrem.vx v25, v25, s5, v0.t      # v25 = v25 % (n*a)
+    # Calculating k and offest
+    vrem.vx v25, v25, s5, v0.t      
+    vsll.vi v15, v25, 2, v0.t     
 
-    ## Load W_real[k], but k in int index, so mul by 4 to become offsets
-    vsll.vi v15, v25, 2, v0.t       # v15 = v25 * 4. Now i can load values at k
-    vloxei32.v v13, 0(t1), v15, v0.t # v13 = wreal[k]
-    vloxei32.v v14, 0(t2), v15, v0.t # v14 = wimag[k]
+    # Loading values from  windex k
+    vloxei32.v v13, 0(t1), v15, v0.t
+    vloxei32.v v14, 0(t2), v15, v0.t 
 
-    # Loading real[i] and image[i]
-    vloxei32.v v16, 0(a0), v21 , v0.t     # real[i]. v16 = temp_real
-    vloxei32.v v17, 0(a1)  ,v21 , v0.t     # imag[i]. v17 = temp_imag
+    # Loading values from index i
+    vloxei32.v v16, 0(a0), v21 , v0.t   
+    vloxei32.v v17, 0(a1)  ,v21 , v0.t  
 
-    # Loading real[i + n] and image[i + n]
-    vloxei32.v v11, 0(a0), v24, v0.t # real [i+n]
-    vloxei32.v v12, 0(a1), v24, v0.t # imag[i+n] 
+    # Loading values from index i+n
+    vloxei32.v v11, 0(a0), v24, v0.t
+    vloxei32.v v12, 0(a1), v24, v0.t
 
     vfmul.vv v7, v13, v11, v0.t     # v7 = wreal*real[i+n]
     vfnmsac.vv v7, v14, v12, v0.t   # v7 = v7 - v14*v12 = wreal*real[i+n] - wimag*imag[i+n]
@@ -417,12 +418,13 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vfsub.vv v5, v16, v7, v0.t
     vfsub.vv v6, v17, v8, v0.t
 
-    # SAVE To realtempi, real/temp i+n
-    vsoxei32.v v9, 0(a0),v21, v0.t  #  save to real[i]
-    vsoxei32.v v10, 0(a1),v21, v0.t # imag[i]
+    # Saving values to index i
+    vsoxei32.v v9 , 0(a0), v21, v0.t 
+    vsoxei32.v v10, 0(a1), v21, v0.t 
 
-    vsoxei32.v v5, 0(a0),v24, v0.t  # ad mask 
-    vsoxei32.v v6, 0(a1),v24, v0.t  # ad mask 
+    # Saving values to index i+n
+    vsoxei32.v v5 , 0(a0), v24, v0.t  
+    vsoxei32.v v6 , 0(a1), v24, v0.t
 
     # incremenet v21(i) and v24(i+n) by vlen*4 (s3)
     vadd.vx v21, v21, s3
