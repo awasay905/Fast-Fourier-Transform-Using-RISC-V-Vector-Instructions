@@ -309,7 +309,7 @@ transform:      # it receives base address of real[] a0, imag[] a1, and an int N
     bge a6, s3, sincosforend
     
     # Call sin_cos_approx. cos returned in fa1, sin in fa0
-    fmul.s fa0, fa3, fa6    # fa0 is mulvalue
+    fmul.s fa0, ft4, fa6    # fa0 is mulvalue
     call sin_cos_approx      
 
     # Save cos/sin to W array
