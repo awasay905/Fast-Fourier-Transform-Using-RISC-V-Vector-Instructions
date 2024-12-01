@@ -457,8 +457,16 @@ def vIFFT(real, imag, array_size, deleteFiles=True):
 def compute_FFT_IFFT_with_benchmarks(array_size, real=[], imag=[], hardcoded=False):
     if not hardcoded:
         import random
+        import numpy as np
         real = [random.uniform(-1000, 1000) for _ in range(array_size)]
         imag = [random.uniform(-1000, 1000) for _ in range(array_size)]
+        
+        # Combine into a complex array
+        complex_array = np.array([complex(r, i) for r, i in zip(real, imag)], dtype=np.complex64)
+
+        # Extract real and imaginary parts as 32-bit floats
+        real = complex_array.real.astype(np.float32)
+        imag = complex_array.imag.astype(np.float32)
 
     print(f"\n\nStarting benchmark for {array_size}")
 
@@ -676,7 +684,5 @@ def flatten_results(results):
         data['vIFFT_cycles'].append(result['vIFFT']['cycles'])
         data['vIFFT_time'].append(result['vIFFT']['time'])
 
-    for i in data['vIFFT_result']:
-        print(i)
 
     return (data)

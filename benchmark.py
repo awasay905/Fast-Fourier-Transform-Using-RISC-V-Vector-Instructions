@@ -159,25 +159,20 @@ with PdfPages(results_folder + report_filename) as pdf:
     max_nIFFT_error = []
     std_nIFFT_error = []
 
-    for size in df['size']:
-        size_df = df[df['size'] == size]
+    for size, size_df in df.groupby('size'):
+        # Access the first element of each column and ensure it's converted to a NumPy array
+        npFFT_result = np.array(size_df['npFFT_result'].iloc[0]).astype(np.complex64)
+        vFFT_result = np.array(size_df['vFFT_result'].iloc[0]).astype(np.complex64)
+        vIFFT_result = np.array(size_df['vIFFT_result'].iloc[0]).astype(np.complex64)
+        nFFT_result = np.array(size_df['nFFT_result'].iloc[0]).astype(np.complex64)
+        nIFFT_result = np.array(size_df['nIFFT_result'].iloc[0]).astype(np.complex64)
+        input_result = np.array(size_df['input'].iloc[0]).astype(np.complex64)
 
-        # Ensure npFFT_result and vFFT_result contain comparable data
-        # Apply element-wise operations using .apply()
-        vFFT_errors = size_df.apply(lambda row: np.abs(
-            np.array(row['npFFT_result']) - np.array(row['vFFT_result'])), axis=1)
-        vIFFT_errors = size_df.apply(lambda row: np.abs(
-            np.array(row['input']) - np.array(row['vIFFT_result'])), axis=1)
-        nFFT_errors = size_df.apply(lambda row: np.abs(
-            np.array(row['npFFT_result']) - np.array(row['nFFT_result'])), axis=1)
-        nIFFT_errors = size_df.apply(lambda row: np.abs(
-            np.array(row['input']) - np.array(row['nIFFT_result'])), axis=1)
-
-        # Flatten the errors (in case each row has arrays of errors)
-        vFFT_errors_flat = np.concatenate(vFFT_errors.values)
-        vIFFT_errors_flat = np.concatenate(vIFFT_errors.values)
-        nFFT_errors_flat = np.concatenate(nFFT_errors.values)
-        nIFFT_errors_flat = np.concatenate(nIFFT_errors.values)
+        # Compute errors
+        vFFT_errors_flat = np.abs(npFFT_result - vFFT_result)
+        vIFFT_errors_flat = np.abs(input_result - vIFFT_result)
+        nFFT_errors_flat = np.abs(npFFT_result - nFFT_result)
+        nIFFT_errors_flat = np.abs(input_result - nIFFT_result)
 
         # Append statistics for vFFT errors
         avg_vFFT_error.append(vFFT_errors_flat.mean())
