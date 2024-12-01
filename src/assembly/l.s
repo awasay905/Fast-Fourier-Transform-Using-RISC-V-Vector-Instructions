@@ -248,8 +248,24 @@ v_sin_cos_approx:
 
 
 
-vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all temp registers maybe. i havent checked
-    addi sp, sp, -28                # Make space to save registers used
+# Function: vOrdina
+#   Computes bit-reversed indices for an array of elements and performs in-place swaps
+#   on the real and imaginary arrays accordingly. This is a key step in the butterfly
+#   operation for the Fast Fourier Transform (FFT).
+# Inputs:
+#   - a0: Base address of the real array
+#   - a1: Base address of the imaginary array
+#   - a2: Number of elements (N)
+# Outputs:
+#   - None. The real and imaginary arrays are modified in-place with elements
+#     reordered according to their bit-reversed indices.
+# Clobbers:
+#   - v1, v2: vector registers used for bit manipulation and indexing
+#   - t1, t2, t3, t4, t5, t6: Temporary registers used for intermediate calculations
+#   - v23, v24, v26, v27, v29: Additional registers used during reordering
+vOrdina:
+    # Save used callee registers to stack
+    addi sp, sp, -28                
     sw a7, 0(sp)
     sw ra, 4(sp)
     sw s1, 8(sp)
@@ -258,29 +274,28 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     sw s4, 20(sp)
     sw s5, 24(sp)
 
+    # Load pointers to temp array. TODO: Replace them with sbrk or via argument
     la t4, real_temp                # t4    = real_temp[] pointer
     la t5, imag_temp                # t5    = imag_temp[] pointer 
-    lw a7, logsize
+    lw a7, logsize                  # log(N) used in reversing
     
     vsetvli t3, a2, e32, m1         # Request vector for a2 length
-    vid.v  v26      # v26 = <i> = {0, 1, 2, ... VLEN-1} => {i, i+1, i+2, ... i + VLEN - 1}
+    vid.v  v26                      # v26 = {0, 1, 2, ... VLEN-1}
 
-    # Load mask for reverse. This will reducded unnecesaary loadigs in loop
+    # Load mask and shift bits for reverse. This is required for reverse function
     li s1, 0x55555555
     li s2, 0x33333333
     li s3, 0x0F0F0F0F
     li s4, 0x00FF00FF  
-    li s5, 30        # mask is 30 instead of 32 to add shift by 2 effect
-    # Save number of bits to reverse in s5
-    # bits(logN) are in a7
-    sub s5, s5, a7  # a7 will never be more than 30
+    li s5, 30                       # mask is 30 instead of 32 to add shift by 2 effect
+    sub s5, s5, a7                  # a7 (logsize) will never be more than 30
 
-    li t2, 0                        # t1 = i = 0
-    vOrdinaLoop:                    # Loop which will run N/VLEN times, solving simultanously VLEN elements 
-    bge t2, a2, endVOrdinaLoop      # break when t3 >= num of elements as all required elemetns have been operated on
+    li t2, 0                
+    vOrdinaLoop:                   
+    bge t2, a2, endVOrdinaLoop      
 
-    # reverse uses t0, v1, v2. Input/output in v26
-    call vReverseIndexOffset                   # Now V29 have rev(N, <i>), Keep it there for later use 
+    # Bit reverse the index in v26. Output in v29
+    call vReverseIndexOffset
 
     # Load from normal array reversed indexed
     vloxei32.v v23, 0(a0), v29       
@@ -293,19 +308,19 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     vsoxei32.v v23, 0(t4), v27            
     vsoxei32.v v24, 0(t5), v27           
 
-    # Increment
-    vadd.vx v26, v26, t3            # adds VLEN to indexVector, so all indexes increase by VLEN
-    add t2, t2, t3                  # i = i + VLEN   
+    # Increment index and coutner
+    vadd.vx v26, v26, t3           
+    add t2, t2, t3            
     j vOrdinaLoop
     endVOrdinaLoop:
 
-    vid.v v26
+    vid.v v26                       # v26 = {0, 1, 2, ... VLEN-1}
     vsll.vi v26, v26, 2             # Shift the indexes by 4 so it matches array offsets
-    slli t6, t3, 2                  # Shift VLEN by 4. Now instead of using 2 insturctions to addlven then shit i will just add shifted vlen to shifter indexes
+    slli t6, t3, 2                  # Shift VLEN by 4. Now  just add shifted vlen to shifted indexes
 
-    li t1, 0                        # t1    = j     = 0
-    vOrdinaLoop2:                   # loop from 0 to size of array N
-    bge t1, a2, endvOrdinaLoop2     # break when j >= N
+    li t1, 0              
+    vOrdinaLoop2:                   
+    bge t1, a2, endvOrdinaLoop2   
 
     # Indxed Load from temp array
     vloxei32.v v23, 0(t4), v26             
@@ -316,12 +331,13 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     vsoxei32.v v24, 0(a1), v26
 
     # Incrementing Indexes
-    vadd.vx v26, v26, t6            # adds VLEN*4 to indexVector*4, so all indexes increase by VLEN*4
-    add t1, t1, t3                  # i = i + VLEN
+    vadd.vx v26, v26, t6           
+    add t1, t1, t3                 
 
     j vOrdinaLoop2              
     endvOrdinaLoop2:
 
+    # Restore registers
     lw a7, 0(sp)
     lw ra, 4(sp)
     lw s1, 8(sp)
@@ -329,9 +345,10 @@ vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all t
     lw s3, 16(sp)
     lw s4, 20(sp)
     lw s5, 24(sp)
-    addi sp, sp, 28                # We use onlt 2 registers in this one
+    addi sp, sp, 28              
 
     jr ra
+
 
 
 vTransform:                 # Takes real a0, imag in a1, and N in a2, and Inverse Flag in a3
