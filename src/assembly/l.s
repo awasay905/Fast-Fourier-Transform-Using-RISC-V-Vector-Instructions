@@ -361,6 +361,18 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     
     mul s5, a5, a4                  # s5 = n*a  // shfted it out of loop
 
+    # instead of recalculating (i+n)*4 and i*4
+    # precalculate i and i+n, multiply by 4
+    # keep adding vlen*4 to them in loop
+    # v20 is i
+    #v21 is i*4
+    #v24 is i+n
+    # s3 is vlen*4
+    slli s3, t0, 2
+    vsll.vi v21, v19, 2  # index*4
+    vadd.vx v24, v19, a5  # i + n
+    vsll.vi v24, v24, 2     # (i+n)*4
+
     vinnerloop:                     # for i = 0; i < N
     bge s1, a2, vinnerloopend       # i  >= num elemenets
     
@@ -369,10 +381,6 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vmseq.vx v0, v18, zero         # if (!(i & n)) which means this loop work only when result is 0,
     # THIS IS THE IF BLOCK. EVERY OPERATION WILL BE MASKED wrt v0
 
-    # Loading real[i] and image[i]
-    vsll.vi v21, v20, 2 , v0.t                 # s1 = i * 4 = offset, becasue each float 4 byte		
-    vloxei32.v v16, 0(a0), v21 , v0.t     # real[i]. v16 = temp_real
-    vloxei32.v v17, 0(a1)  ,v21 , v0.t     # imag[i]. v17 = temp_imag
 
     vmul.vx v15, v20, a4 , v0.t     # v15 = v15*a = i*a
     vrem.vx v15, v15, s5, v0.t      # v15 = v15 % (n*a)
@@ -382,12 +390,13 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vloxei32.v v13, 0(t1), v15, v0.t # v13 = wreal[k]
     vloxei32.v v14, 0(t2), v15, v0.t # v14 = wimag[k]
 
-    # Loading real[i + n] and image[i + n]
-    vadd.vx v15, v20, a5, v0.t      # v15 = i+n, i+1+n, ...., i+VLEN-1+n
+    # Loading real[i] and image[i]
+    vloxei32.v v16, 0(a0), v21 , v0.t     # real[i]. v16 = temp_real
+    vloxei32.v v17, 0(a1)  ,v21 , v0.t     # imag[i]. v17 = temp_imag
 
-    vsll.vi v15, v15, 2, v0.t       # v15 = v15 * 4. Now i can load values at i + n i think
-    vloxei32.v v11, 0(a0), v15, v0.t # real [i+n]
-    vloxei32.v v12, 0(a1), v15, v0.t # imag[i+n] 
+    # Loading real[i + n] and image[i + n]
+    vloxei32.v v11, 0(a0), v24, v0.t # real [i+n]
+    vloxei32.v v12, 0(a1), v24, v0.t # imag[i+n] 
 
     vfmul.vv v7, v13, v11, v0.t     # v7 = wreal*real[i+n]
     vfnmsac.vv v7, v14, v12, v0.t   # v7 = v7 - v14*v12 = wreal*real[i+n] - wimag*imag[i+n]
@@ -404,8 +413,12 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vsoxei32.v v9, 0(a0),v21, v0.t  #  save to real[i]
     vsoxei32.v v10, 0(a1),v21, v0.t # imag[i]
 
-    vsoxei32.v v5, 0(a0),v15, v0.t  # ad mask 
-    vsoxei32.v v6, 0(a1),v15, v0.t  # ad mask 
+    vsoxei32.v v5, 0(a0),v24, v0.t  # ad mask 
+    vsoxei32.v v6, 0(a1),v24, v0.t  # ad mask 
+
+    # incremenet v21(i) and v24(i+n) by vlen*4 (s3)
+    vadd.vx v21, v21, s3
+    vadd.vx v24, v24, s3
    
     add s1, s1, t0                  # i += Vlen
     j vinnerloop
