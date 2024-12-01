@@ -377,12 +377,13 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     # s4 will be a*vlen
     vmul.vx v25, v19, a4
     mul s4, a4, t0
+    # also shift n by 2 to calculate i*4 & n without doing one addition
+    slli a6, a5, 2
 
     vinnerloop:                     # for i = 0; i < N
     bge s1, a2, vinnerloopend       # i  >= num elemenets
     
-    vadd.vx v20, v19, s1            # v18 = i, i+1, i+2, ....., i + VLEN-1
-    vand.vx v18, v20, a5            # v1 & n = (i & n), (i+1 & n), .... (i + VLEN -1   & n)
+    vand.vx v18, v21, a6            # v1 & n = (i & n), (i+1 & n), .... (i + VLEN -1   & n)
     vmseq.vx v0, v18, zero         # if (!(i & n)) which means this loop work only when result is 0,
     # THIS IS THE IF BLOCK. EVERY OPERATION WILL BE MASKED wrt v0
 
