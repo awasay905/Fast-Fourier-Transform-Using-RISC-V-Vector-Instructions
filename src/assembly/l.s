@@ -47,44 +47,48 @@ setlogN:
 # Inputs:
 #   - v26: Input number to reverse.
 #   - a0: Number of significant bits to reverse (optional; default 32).
+#   - s1: 0x55555555
+#   - s2: 0x33333333
+#   - s3: 0x0F0F0F0F
+#   - s4: 0x00FF00FF
+#   - s5: Number of bits to shift
 # Outputs:
 #   - v29: The reversed binary number.
 # Clobbers:
-#   - t0, v1, v2
-# Assumes that mask (0x55555555,0x33333333,0x0F0F0F0F, 0x00FF00FF  ) and amoutn to shift(30) are saved in s1,s2,s3,s4, s5
+#   - v1, v2
 vReverseIndexOffset:
     # Swap odd and even bits
-    vsrl.vi v1, v26, 1   # v29 >> 1
-    vand.vx v1, v1, s1   # (v29 >> 1) & 0x55555555
-    vand.vx v2, v26, s1  # v29 & 0x55555555
-    vsll.vi v2, v2, 1    # (v29 & 0x55555555) << 1
-    vor.vv v29, v1, v2   # Result back to v29
+    vsrl.vi v1, v26, 1              # v29 >> 1
+    vand.vx v1, v1, s1              # (v29 >> 1) & 0x55555555
+    vand.vx v2, v26, s1             # v29 & 0x55555555
+    vsll.vi v2, v2, 1               # (v29 & 0x55555555) << 1
+    vor.vv v29, v1, v2              # Result back to v29
 
     # Swap consecutive pairs
-    vsrl.vi v1, v29, 2       # v29 >> 2
-    vand.vx v1, v1, s2       # (v29 >> 2) & 0x33333333
-    vand.vx v2, v29, s2       # v29 & 0x33333333
-    vsll.vi v2, v2, 2       # (v29 & 0x33333333) << 2
-    vor.vv v29, v1, v2        # Result back to v29
+    vsrl.vi v1, v29, 2              # v29 >> 2
+    vand.vx v1, v1, s2              # (v29 >> 2) & 0x33333333
+    vand.vx v2, v29, s2             # v29 & 0x33333333
+    vsll.vi v2, v2, 2               # (v29 & 0x33333333) << 2
+    vor.vv v29, v1, v2              # Result back to v29
 
     # Swap nibbles
-    vsrl.vi v1, v29, 4       # v29 >> 4
-    vand.vx v1, v1, s3       # (v29 >> 4) & 0x0F0F0F0F
-    vand.vx v2, v29, s3       # v29 & 0x0F0F0F0F
-    vsll.vi v2, v2, 4       # (v29 & 0x0F0F0F0F) << 4
-    vor.vv v29, v1, v2        # Result back to v29
+    vsrl.vi v1, v29, 4              # v29 >> 4
+    vand.vx v1, v1, s3              # (v29 >> 4) & 0x0F0F0F0F
+    vand.vx v2, v29, s3             # v29 & 0x0F0F0F0F
+    vsll.vi v2, v2, 4               # (v29 & 0x0F0F0F0F) << 4
+    vor.vv v29, v1, v2              # Result back to v29
 
     # Swap bytes
-    vsrl.vi v1, v29, 8       # v29 >> 8
-    vand.vx v1, v1, s4       # (v29 >> 8) & 0x00FF00FF
-    vand.vx v2, v29, s4       # v29 & 0x00FF00FF
-    vsll.vi v2, v2, 8       # (v29 & 0x00FF00FF) << 8
-    vor.vv v29, v1, v2        # Result back to v29
+    vsrl.vi v1, v29, 8              # v29 >> 8
+    vand.vx v1, v1, s4              # (v29 >> 8) & 0x00FF00FF
+    vand.vx v2, v29, s4             # v29 & 0x00FF00FF
+    vsll.vi v2, v2, 8               # (v29 & 0x00FF00FF) << 8
+    vor.vv v29, v1, v2              # Result back to v29
 
     # Swap 2-byte pairs
-    vsrl.vi v1, v29, 16      # v29 >> 16
-    vsll.vi v2, v29, 16      # v29 << 16
-    vor.vv v29, v1, v2        # Final result in v29
+    vsrl.vi v1, v29, 16             # v29 >> 16
+    vsll.vi v2, v29, 16             # v29 << 16
+    vor.vv v29, v1, v2              # Final result in v29
 
     # Shift by the req bit size
     vsrl.vx v29, v29, s5
