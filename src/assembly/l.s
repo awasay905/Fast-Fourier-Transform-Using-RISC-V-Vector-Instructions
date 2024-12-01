@@ -93,7 +93,7 @@ vReverseIndexOffset:
     # Shift by the req bit size
     vsrl.vx v29, v29, s5
     
-    ret                            # Return with result in v29
+    ret                             # Return with result in v29
 
 
 
@@ -181,72 +181,71 @@ preload_constants:
 # Function: sin_cos_approx
 # Calculates sin and cos of the float using chebishev polynomial
 # Taken from stackoverflow
+# Can not use  v22, v23, v1-v13, ft11
 # Input:
 #   - a = v21 = angle (a) in radians
 # Output:
 #   - rs = v30 = sin() (approximation)
 #   - rc = v31 = cos() (approximation)
 # Clobbers:
-#   - t0, t1, ft0, ft1, ft2, ft3
-# Can not write to v22, v23, v1-v13
-# Help:
-#   c = v14
-#   j = v15
-#   a = v21
-#   rs = v30
-#   rc = v31
-#   s = v16
-#   sa = v17
-#   t = v18
-#   i = v19 
-#   ic = v20, 
-
+#   - v21, t0, t1, ft0, ft1, ft2, ft3
+#   - c = v14
+#   - j = v15
+#   - a = v21
+#   - rs = v30
+#   - rc = v31
+#   - s = v16
+#   - sa = v17
+#   - t = v18
+#   - i = v19 
+#   - ic = v20
 v_sin_cos_approx:
     # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
-    vmv.v.v   v15, v4 # move 12582912 to v15  because 
-    vfmacc.vv  v15, v21, v3 # a(v21))*6.36619747e-1f(v3) + 12582912.f(v15)
-    vfsub.vv    v15, v15, v4   # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
+    vmv.v.v   v15, v4               # v15 = 12582912
+    vfmacc.vv  v15, v21, v3         # a(v21))*6.36619747e-1f(v3) + 12582912.f(v15)
+    vfsub.vv    v15, v15, v4        # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
 
-    vfnmsac.vv v21, v15, v1   #  a = fmaf (j, -half_pi_hi, a);
-    vfnmsac.vv v21, v15, v2   #  a = fmaf (j, -half_pi_lo, a);
+    vfnmsac.vv v21, v15, v1         #  a = fmaf (j, -half_pi_hi, a);
+    vfnmsac.vv v21, v15, v2         #  a = fmaf (j, -half_pi_lo, a);
 
-    vfcvt.x.f.v v19, v15          #  i = (int) j
-    vadd.vi v20, v19, 1               # ic = i + 1
+    vfcvt.x.f.v v19, v15            #  i = (int) j
+    vadd.vi v20, v19, 1             # ic = i + 1
 
-    vfmul.vv  v17, v21, v21          # ft2 = a * a (sa)
+    vfmul.vv  v17, v21, v21         # ft2 = a * a (sa)
 
     # Approximate cosine.
-    vmv.v.v   v14, v5  # c =               2.44677067e-5f; # why am i even doing this i can diretcly move flaot to vector splat
-    vfmadd.vv v14, v17, v6     # c = c * sa + -1.38877297e-3
-    vfmadd.vv v14, v17, v7     # c = c * sa + 4.16666567e-2
-    vfmadd.vv v14, v17, v8     # c = c * sa + -0.5
-    vfmadd.vv v14, v17, v9     # c = c * sa + 1.0
+    vmv.v.v     v14, v5             # c = 2.44677067e-5f
+    vfmadd.vv   v14, v17, v6        # c = c * sa + -1.38877297e-3
+    vfmadd.vv   v14, v17, v7        # c = c * sa + 4.16666567e-2
+    vfmadd.vv   v14, v17, v8        # c = c * sa + -0.5
+    vfmadd.vv   v14, v17, v9        # c = c * sa + 1.0
 
-    # Approximate sine. By default save it to v31
-    vmv.v.v     v16, v10          # v16 = 2.86567956e-6f
-    vfmadd.vv   v16, v17, v11     # s = s * sa + -1.98559923e-4
-    vfmadd.vv   v16, v17, v12     # s = s * sa + 8.33338592e-3
-    vfmadd.vv   v16, v17, v13     # s = s * sa + -0.166666672
-    vfmul.vv    v18, v21, v17          # t = a * sa
-    vfmadd.vv   v16, v18, v21      # s = s * t + a
+    # Approximate sine.
+    vmv.v.v     v16, v10            # v16 = 2.86567956e-6f
+    vfmadd.vv   v16, v17, v11       # s = s * sa + -1.98559923e-4
+    vfmadd.vv   v16, v17, v12       # s = s * sa + 8.33338592e-3
+    vfmadd.vv   v16, v17, v13       # s = s * sa + -0.166666672
+    vfmul.vv    v18, v21, v17       # t = a * sa
+    vfmadd.vv   v16, v18, v21       # s = s * t + a
 
     # Check the value of i and adjust the order of sine and cosine if needed
-    vand.vi v0, v19, 1                     # v0 = i & 1
-    vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
+    vand.vi v0, v19, 1              # v0 = i & 1
+    vmfne.vf v0, v0, ft11           # Set mask when true i.e not equal too zer0
 
     #Now we merge c(v14) and s(v16) to rc(v31) and rs(v30)
-    vmerge.vvm v30, v16, v14, v0  #v0.mask[i] ? v14[i] : v16[i]
-    vmerge.vvm v31, v14, v16, v0  #v0.mask[i] ? v14[i] : v16[i]
+    vmerge.vvm v30, v16, v14, v0    #v0.mask[i] ? v14[i] : v16[i]
+    vmerge.vvm v31, v14, v16, v0    #v0.mask[i] ? v14[i] : v16[i]
  
-    vand.vi v0, v19, 2                   # t0 = i & 2
-    vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
-    vfsgnjn.vv v30,v30,v30, v0.t     # negate rs where i&2 is true
+    vand.vi v0, v19, 2              # t0 = i & 2
+    vmfne.vf v0, v0, ft11           # Set mask when true i.e not equal too zer0
+    vfsgnjn.vv v30,v30,v30, v0.t    # negate rs where i&2 is true
 
-    vand.vi v0, v20, 2                   # t1 = ic & 2
-    vmfne.vf v0, v0, ft11              # Set mask when true i.e not equal too zer0
-    vfsgnjn.vv v31,v31,v31, v0.t                  # Negate cosine if ic & 2 != 0
+    vand.vi v0, v20, 2              # t1 = ic & 2
+    vmfne.vf v0, v0, ft11           # Set mask when true i.e not equal too zer0
+    vfsgnjn.vv v31,v31,v31, v0.t    # Negate cosine if ic & 2 != 0
 
-    ret                              # Return with sine in v30, cosine in v31
+    ret                             # Return with sine in v30, cosine in v31
+
 
 
 vOrdina:                    # Takes real a0, imag in a1, and N in a2. uses all temp registers maybe. i havent checked
