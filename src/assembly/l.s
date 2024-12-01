@@ -351,32 +351,53 @@ vOrdina:
 
 
 
-vTransform:                 # Takes real a0, imag in a1, and N in a2, and Inverse Flag in a3
-    addi sp, sp, -4         # Save return address for funtion call
+# Function: vTransform
+#   Implements the FFT (Fast Fourier Transform) or IFFT (Inverse FFT) using vectorized
+#   operations for performance optimization. It involves the following steps:
+#     1. Bit-reversed reordering of elements (via vOrdina).
+#     2. Computing twiddle factors (W_real, W_imag) using Euler's formula.
+#     3. Nested loops for the butterfly operation, performing in-place transforms.
+#
+# Inputs:
+#   - a0: Base address of the real array
+#   - a1: Base address of the imaginary array
+#   - a2: Number of elements (N)
+#   - a3: Inverse flag (1 for IFFT, 0 for FFT)
+#
+# Outputs:
+#   - None. The real and imaginary arrays are modified in-place to contain the FFT/IFFT result.
+#
+# Clobbers:
+#   - General-purpose: t0-t6, s0-s5, a4-a6
+#   - Floating-point: ft1, ft3
+#   - Vector: v0, v7-v10, v11-v19, v21, v22, v23-v25, v30, v31
+vTransform:
+    addi sp, sp, -4  
     sw ra, 0(sp)
 
-    call vOrdina                    # Call Vectorized Ordina.
+    # Call ordina function to bitwise swap reverse indexed elements
+    call vOrdina                    
 
+    # Load addresses for W arrays for saving sin/cos
+    la t1, W_real                   
+    la t2, W_imag                
 
-    la t1, W_real                   # t1    = W_real[]
-    la t2, W_imag                   # t2    = W_imag[]
+    # Loop for Sin/Cos Using Euler Formula
+    vid.v v22                       # Index vector for help
 
-    # Loop for Sin/Cos (Euler Formula)
-    vid.v v22
-
+    # Calculate (inverse) * -2PI/N 
     la t0, NEG_TWO_PI               # Load mem address of -2PI to t0
     flw ft1, 0(t0)                  # Load -2PI to ft1
     mul  t0, a3, a2                 # t0 = (inverse)*N
     fcvt.s.w ft3, t0                # ft3 = N
     fdiv.s ft1, ft1, ft3            # ft1 = ft1 / ft3 = (inverse) -2PI *  / N
 
-
+    # Preload constatns to be used in sin/cos calculations
     call preload_constants          # uses v1-v13 and t0
     
     srai a4, a2, 1                  # a4    =   N / 2   = a / 2
     vsetvli t0, a4, e32             # Vector for N/2 elements
     li t3, 0                        # t3    = i = 0
-
 
     vsincosloop:                    # for loop i = 0; i < N / 2;
     bge t3, a4, endvsincosloop      # as soon as num element t0 >= N/2, break
@@ -392,7 +413,7 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     # Now, we have vector having cos, sin. Now we save to W_real, W_imag
     vsll.vi v23, v23, 2
     vsoxei32.v v31, 0(t1), v23              # W_real[i] = myCos(value);
-    vsoxei32.v v30, 0(t2), v23            # W_imag[i] = mySin(value); hopefully this works
+    vsoxei32.v v30, 0(t2), v23            # W_imag[i] = mySin(value);
 
     add t3, t3, t0                  # i +=  VLEN
     j vsincosloop
@@ -438,9 +459,9 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     vinnerloop:                     # for i = 0; i < N
     bge s1, a2, vinnerloopend       # i  >= num elemenets
     
-    # Calculating mask
-    vand.vx v18, v21, a6            # v1>>2 & n>>2 = (i & n), (i+1 & n), .... (i + VLEN -1   & n)
-    vmseq.vx v0, v18, zero         # if (!(i & n)) which means this loop work only when result is 0,
+    # Calculate mask (i & n)
+    vand.vx v18, v21, a6           
+    vmseq.vx v0, v18, zero         # if (!(i & n)) which means this loop work only when result is 0
     # Start of If block. Every operation is masked wrt v0
 
     # Calculating k and offest
@@ -501,7 +522,22 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     jr ra
 
 
-vFFT:                       # Takes real a0, imag in a1, and N a2. Uses no t registers
+# Function: vFFT
+#   Performs the Fast Fourier Transform (FFT) or Inverse FFT (IFFT) on the input real and 
+#   imaginary arrays by calling the `vTransform` function. This function sets up the
+#   inverse flag for FFT and calls the main transform logic.
+#
+# Inputs:
+#   - a0: Base address of the real array
+#   - a1: Base address of the imaginary array
+#   - a2: Number of elements (N)
+#
+# Outputs:
+#   - None. The real and imaginary arrays are modified in-place to contain the FFT result.
+#
+# Registers clobbered:
+#   - None explicitly.
+vFFT:                     
     addi sp, sp, -4
     sw ra, 0(sp)
 
@@ -514,7 +550,23 @@ vFFT:                       # Takes real a0, imag in a1, and N a2. Uses no t reg
     jr ra
     
 
-vIFFT:                      # Takes real a0, imag in a1, and N a2. USES t0-4 and ft0
+# Function: vIFFT
+#   Performs the Inverse Fast Fourier Transform (IFFT) on the input real and imaginary arrays.
+#   This function calls the vectorized `vTransform` for the main IFFT computation, then
+#   scales the result by dividing each element of the output arrays by the total number of elements (N).
+#
+# Inputs:
+#   - a0: Base address of the real array
+#   - a1: Base address of the imaginary array
+#   - a2: Number of elements (N)
+#
+# Outputs:
+#   - None. The real and imaginary arrays are modified in-place to contain the scaled IFFT result.
+#
+# Registers clobbered:
+#   - Temporary registers: t0-t4
+#   - Floating-point register: ft0
+vIFFT:              
     addi sp, sp, -16            # Save a0, a1 etc to stack because these addresses
     sw ra, 0(sp)                # Are modified when dividing
     sw a0, 4(sp)    
