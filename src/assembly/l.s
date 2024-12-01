@@ -355,6 +355,10 @@ vTransform:                 # Takes real a0, imag in a1, and N in a2, and Invers
     lw a3, logsize                     # now a0 have logN
     vid.v v19
 
+    # s3 is vlen*4
+    slli s3, t0, 2
+
+
     forTransform:                   #int j = 0; j < logint(N); j++
     bge s0, a3, forTransformEnd     # End outer loop
     li s1, 0                        # s1 = i = 0
