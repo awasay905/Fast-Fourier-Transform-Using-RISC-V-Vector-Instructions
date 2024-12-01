@@ -62,3 +62,16 @@ compileNV2:
 	
 executeNV2:
 	whisper -x  $(TEMPPATH)/programNV2.hex -s 0x80000000 --tohost 0xd0580000 -f  $(TEMPPATH)/logNV2.txt --configfile ./veer/whisper.json
+
+alll: compilel executel
+
+cleanl: 
+	rm -f $(TEMPPATH)/logNV2.txt  $(TEMPPATH)/programNV2.hex  $(TEMPPATH)/TESTNV2.dis  $(TEMPPATH)/TESTNV2.exe
+	
+compilel:
+	$(GCC_PREFIX)-gcc $(ABI) -lgcc -T$(LINK) -o  $(TEMPPATH)/TESTNV2.exe $(CODEFOLDER)/l.s -nostartfiles -lm
+	$(GCC_PREFIX)-objcopy -O verilog  $(TEMPPATH)/TESTNV2.exe  $(TEMPPATH)/programNV2.hex
+	$(GCC_PREFIX)-objdump -S  $(TEMPPATH)/TESTNV2.exe >  $(TEMPPATH)/TESTNV2.dis
+	
+executel:
+	whisper -x  $(TEMPPATH)/programNV2.hex -s 0x80000000 --tohost 0xd0580000 -f  $(TEMPPATH)/logNV2.txt --configfile ./veer/whisper.json
