@@ -97,7 +97,7 @@ def simulate_on_veer(assembly_file, log_file, delete_files = True, save_full_log
     import re
     import time
     GCC_PREFIX = "riscv32-unknown-elf"
-    ABI = "-march=rv32gcv -mabi=ilp32f"
+    ABI = "-march=rv32gcv_zbb_zbs -mabi=ilp32f"
     LINK = f"{VEER_FOLDER_PATH}/link.ld"
     fileName = assembly_file[assembly_file.rfind('/') + 1:-2]  # removes .s  and gets file name from the file path
     tempPath = f"{TEST_TEMP_FOLDER_PATH}/{fileName}"
@@ -219,45 +219,12 @@ def hex_to_float(hex_array):
     
     return float_array
 
-# Find index for the markers places in assembly code
-def find_log_index(file_path):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    # Find the line with the specific pattern in reverse order
-    start_index = -1
-    end_index = -1
-    for i in range(len(lines) - 1, -1, -1):
-        if "lui" in lines[i]:
-            words = lines[i].split()
-            if "lui" in words and len(words) > 1 and words[words.index("lui") - 1] == "00123000":
-                if "addi" in lines[i+1]:
-                    words2 = lines[i+1].split()
-                    if "addi" in words2 and len(words2) > 1 and words2[words2.index("addi") - 1] == "00123456":
-                        if "lui" in lines[i+2]:
-                            words3 = lines[i+2].split()
-                            if "lui" in words3 and len(words3) > 1 and words3[words3.index("lui") - 1] == "00234000":
-                                if "addi" in lines[i+3]:
-                                    words4 = lines[i+3].split()
-                                    if "addi" in words4 and len(words4) > 1 and words4[words4.index("addi") - 1] == "00234567":
-                                        if "lui" in lines[i+4]:
-                                            words5 = lines[i+4].split()
-                                            if "lui" in words5 and len(words5) > 1 and words5[words5.index("lui") - 1] == "00345000":
-                                                if "addi" in lines[i+5]:
-                                                    words6 = lines[i+5].split()
-                                                    if "addi" in words6 and len(words6) > 1 and words6[words6.index("addi") - 1] == "00345678":
-                                                        if end_index == -1: 
-                                                            end_index = i
-                                                        elif start_index == -1:
-                                                            start_index = i
-                                                        else:
-                                                            break
-
-    # If the pattern line is found, call helper and process the file normally
-    return start_index, end_index
-
 # Function to find the pattern twice in the file and return line indices
-def find_log_pattern_index(lines):
+def find_log_pattern_index(file_name):
+    
+    with open(file_name, 'r') as file:
+            lines = file.readlines()
+            
     # List of required values in the 7th column
     required_values = ["00123000", "00123456", "00234000", "00234567", "00345000", "00345678"]
     found_values = []  # List to track when we find the required values
@@ -269,7 +236,7 @@ def find_log_pattern_index(lines):
         if len(columns) > 6:  # Check if there are enough columns
             value = columns[6]  # Get the 7th column (index 6)
             if value in required_values:
-                if current_pattern_start is None:
+                if current_pattern_start is None and value == required_values[0]:
                     current_pattern_start = i  # Start tracking pattern from this line
                 found_values.append(value)
 
@@ -287,9 +254,9 @@ def find_log_pattern_index(lines):
     return pattern_indices
 
 # Reads log file and extract real and imag float values
-def process_file(file_name, delete_log_files = True):
+def process_file(file_name, delete_log_files = False):
     import numpy as np
-    start_index, end_index = find_log_index(file_name)
+    start_index, end_index = find_log_pattern_index(file_name)
     real = []
     imag = []
     
@@ -307,27 +274,65 @@ def process_file(file_name, delete_log_files = True):
 
         # Initialize a flag to alternate between real and imag
         save_to_real = True
+        is_vectorized = False
         
         # Process lines within the specified range
         for i in range(start_index, end_index):
-            if "c.flw" in lines[i] or "flw" in lines[i]:
-                words = lines[i].split()
-                if len(words) > 1:
-                    if "c.flw" in lines[i]:
-                        index_of_cflw = words.index("c.flw")
-                    else:
-                        index_of_cflw = words.index("flw")
-                    if index_of_cflw > 0:
-                        if save_to_real:
-                            real.append(words[index_of_cflw - 1])
-                            save_to_real = False
+            if not is_vectorized:
+                if "vsetvli" in lines[i]:
+                    is_vectorized = True
+                    continue
+            
+                if "c.flw" in lines[i] or "flw" in lines[i]:
+                    words = lines[i].split()
+                    if len(words) > 1:
+                        if "c.flw" in lines[i]:
+                            index_of_cflw = words.index("c.flw")
                         else:
-                            imag.append(words[index_of_cflw - 1])
-                            save_to_real = True
+                            index_of_cflw = words.index("flw")
+                        if index_of_cflw > 0:
+                            if save_to_real:
+                                real.append(words[index_of_cflw - 1])
+                                save_to_real = False
+                            else:
+                                imag.append(words[index_of_cflw - 1])
+                                save_to_real = True
+                                
+            else:
+                if "vle32.v" in lines[i]:
+                    words = lines[i].split()
+                    index_of_cflw = words.index("vle32.v")
+                    if save_to_real:
+                        real.append(words[index_of_cflw - 1])
+                        save_to_real = False
+                    else:
+                        imag.append(words[index_of_cflw - 1])
+                        save_to_real = True
 
         
         
         #return hex_to_float(real), hex_to_float(imag)
+        if (is_vectorized):
+            realVal = []
+            imagVal = []
+            
+            for i in range(len(real)):
+                realVector = real[i]
+                imagVector = imag[i]
+                
+                # split the strings into 8 bit chunks
+                realVector = [realVector[i:i+8] for i in range(0, len(realVector), 8)]
+                imagVector = [imagVector[i:i+8] for i in range(0, len(imagVector), 8)]
+                
+                # reverse the order of the chunks
+                realVector = realVector[::-1]
+                imagVector = imagVector[::-1]
+                
+                realVal.extend(realVector)
+                imagVal.extend(imagVector)
+            
+            real = realVal
+            imag = imagVal
         return np.array(hex_to_float(real)) + 1j * np.array(hex_to_float(imag))
     
     except FileNotFoundError:
@@ -335,7 +340,7 @@ def process_file(file_name, delete_log_files = True):
         return real, imag
     
 # runs "type", returning the result, cycles and time taken used in a tuple
-def run(type, real, imag, array_size, delete_temp_files = True, delete_log_files = True):
+def run(type, real, imag, array_size, delete_temp_files = True, delete_log_files = False):
     import os    
     import numpy as np
     
@@ -350,21 +355,12 @@ def run(type, real, imag, array_size, delete_temp_files = True, delete_log_files
     elif type == 'FFT' or type == 'IFFT':
         write_array_to_assembly_file(f"{TEST_CODE_FOLDER_PATH}/FFTforPython.s", assemblyFile, real, imag, array_size)
         write_fft_type_to_assembly_file(assemblyFile, assemblyFile, type)
-    elif type == 'vFFT2' or type == 'vIFFT2':
-        write_array_to_assembly_file(f"{TEST_CODE_FOLDER_PATH}/vFFTforPython2.s", assemblyFile, real, imag, array_size)
-        write_fft_type_to_assembly_file(assemblyFile, assemblyFile, type[0:-1])
-    elif type == 'FFT2' or type == 'IFFT2':
-        write_array_to_assembly_file(f"{TEST_CODE_FOLDER_PATH}/FFTforPython2.s", assemblyFile, real, imag, array_size)
-        write_fft_type_to_assembly_file(assemblyFile, assemblyFile, type[0:-1])
     else:
         print("ERROR")
         exit(-1)
     
     cycles, time = simulate_on_veer(assemblyFile, logFile, delete_temp_files)
     result = process_file(logFile, delete_log_files)
-    #realOutput, imagOutput = process_file(logFile, delete_log_files)
-
-    #result =  np.array(realOutput) + 1j * np.array(imagOutput)  
 
     return (result, cycles, time)
 
@@ -394,35 +390,19 @@ def npIFFT(real, imag, _):
 
 # Calculaye FFT using risc v assembly code simulated on veer
 def nFFT(real, imag, array_size, deleteFiles = True):
-    return run('FFT', real, imag, array_size, deleteFiles)
+    return run('FFT', real, imag, array_size, deleteFiles, False)
 
 # Calculaye IFFT using risc v assembly code simulated on veer
 def nIFFT(real, imag, array_size, deleteFiles = True):
-    return run('IFFT', real, imag, array_size, deleteFiles)
+    return run('IFFT', real, imag, array_size, deleteFiles, False)
 
 # Calculaye FFT using vectorized risc v assembly code simulated on veer
 def vFFT(real, imag, array_size, deleteFiles = True):
-    return run('vFFT', real, imag, array_size, deleteFiles)
+    return run('vFFT', real, imag, array_size, deleteFiles, False)
 
 # Calculaye IFFT using vecctorized risc v assembly code simulated on veer
 def vIFFT(real, imag, array_size, deleteFiles = True):
-    return run('vIFFT', real, imag, array_size, deleteFiles)
-
-# Calculaye FFT using risc v assembly code simulated on veer
-def nFFT2(real, imag, array_size, deleteFiles = True):
-    return run('FFT2', real, imag, array_size, deleteFiles)
-
-# Calculaye IFFT using risc v assembly code simulated on veer
-def nIFFT2(real, imag, array_size, deleteFiles = True):
-    return run('IFFT2', real, imag, array_size, deleteFiles)
-
-# Calculaye FFT using vectorized risc v assembly code simulated on veer
-def vFFT2(real, imag, array_size, deleteFiles = True):
-    return run('vFFT2', real, imag, array_size, deleteFiles)
-
-# Calculaye IFFT using vecctorized risc v assembly code simulated on veer
-def vIFFT2(real, imag, array_size, deleteFiles = True):
-    return run('vIFFT2', real, imag, array_size, deleteFiles)
+    return run('vIFFT', real, imag, array_size, deleteFiles, False)
 
     
 # Performs FFT and IFFT on array of n size, of real and imag. if hardcoded if flase then random floats 
@@ -455,15 +435,6 @@ def compute_FFT_IFFT_with_benchmarks(array_size, real=[], imag=[], hardcoded=Fal
     nIFFTresult, nIFFTcycles, nIFFTtime = nIFFT(nFFTresult.real, nFFTresult.imag, array_size)
     print(f"Done. Took {nIFFTtime} milliseconds")
     
-    print(f"Performing nFFT2 for array of size {array_size}")
-    nFFT2result, nFFT2cycles, nFFT2time = nFFT2(real, imag, array_size)
-    print(f"Done. Took {nFFT2time} milliseconds")
-    
-    print(f"Performing nIFFT2 for array of size {array_size}")
-    nIFFT2result, nIFFT2cycles, nIFFT2time = nIFFT2(nFFT2result.real, nFFT2result.imag, array_size)
-    print(f"Done. Took {nIFFT2time} milliseconds")
-    
-    
     print(f"Performing vFFT for array of size {array_size}")
     vFFTresult, vFFTcycles, vFFTtime = vFFT(real, imag, array_size)
     print(f"Done. Took {vFFTtime} milliseconds")
@@ -471,14 +442,6 @@ def compute_FFT_IFFT_with_benchmarks(array_size, real=[], imag=[], hardcoded=Fal
     print(f"Performing vIFFT for array of size {array_size}")
     vIFFTresult, vIFFTcycles, vIFFTtime = vIFFT(vFFTresult.real, vFFTresult.imag, array_size)
     print(f"Done. Took {vIFFTtime} milliseconds")
-    
-    print(f"Performing vFFT2 for array of size {array_size}")
-    vFFT2result, vFFT2cycles, vFFT2time = vFFT2(real, imag, array_size)
-    print(f"Done. Took {vFFT2time} milliseconds")
-    
-    print(f"Performing vIFFT2 for array of size {array_size}")
-    vIFFT2result, vIFFT2cycles, vIFFT2time = vIFFT2(vFFT2result.real, vFFT2result.imag, array_size)
-    print(f"Done. Took {vIFFT2time} milliseconds")
     
     import numpy as np
     benchmark_results['size'] = array_size
@@ -508,44 +471,20 @@ def compute_FFT_IFFT_with_benchmarks(array_size, real=[], imag=[], hardcoded=Fal
     'time': nIFFTtime    
     }
     
-    benchmark_results['nFFT2'] = {
-    'result': nFFT2result,
-    'cycles': nFFT2cycles,
-    'time': nFFT2time    
-    }
-    
-    benchmark_results['nIFFT2'] = {
-    'result': nIFFT2result,
-    'cycles': nIFFT2cycles,
-    'time': nIFFT2time    
-    }
     
     benchmark_results['vFFT'] = {
-    'result': vFFTresult,
+    'result': vFFTresult[:array_size],
     'cycles': vFFTcycles,
     'time': vFFTtime    
     }
     
     benchmark_results['vIFFT'] = {
-    'result': vIFFTresult,
+    'result': vIFFTresult[:array_size],
     'cycles': vIFFTcycles,
     'time': vIFFTtime    
     }
     
-    benchmark_results['vFFT2'] = {
-    'result': vFFT2result,
-    'cycles': vFFT2cycles,
-    'time': vFFT2time    
-    }
-    
-    benchmark_results['vIFFT2'] = {
-    'result': vIFFT2result,
-    'cycles': vIFFT2cycles,
-    'time': vIFFT2time    
-    }
-    
     print(f"\n\nAll benchmarks done for {array_size}\n\n")
-    print(benchmark_results)
     return benchmark_results
 
 # Changes Veer vector size to number of bytes
@@ -588,46 +527,17 @@ def list_to_numpy(data):
     else:
         return data
     
-import json
 import pickle
 import numpy as np
 
 def saveResults(results, filename):
-    def complex_encoder(obj):
-        if isinstance(obj, np.ndarray):  # Convert NumPy array to list
-            return obj.tolist()
-        if isinstance(obj, complex):  # Convert complex numbers to strings
-            return f"{obj.real}+{obj.imag}j"
-        return str(obj)  # Fallback for other non-serializable types
-
-    with open(filename, 'w') as f:
-        json.dump(results, f, indent=4, default=complex_encoder)
-   
     with open(filename+'.pickle', 'wb') as f:
         pickle.dump(results, f)
 
 
-
-def loadResults(filename, format='pickle'):
-    if format == 'json':
-        def complex_decoder(dct):
-            for key, value in dct.items():
-                if isinstance(value, list):  # Check if it's a list (likely a NumPy array)
-                    dct[key] = np.array(value)
-                elif isinstance(value, str) and ('+' in value or '-' in value) and 'j' in value:
-                    try:
-                        dct[key] = complex(value.replace('j', 'j'))  # Convert string back to complex
-                    except ValueError:
-                        pass  # Skip non-complex strings
-            return dct
-        
-        with open(filename, 'r') as f:
-            return json.load(f, object_hook=complex_decoder)
-    elif format == 'pickle':
-        with open(filename+'.pickle', 'rb') as f:
-            return pickle.load(f)
-    else:
-        raise ValueError("Unsupported format. Use 'json' or 'pickle'.")
+def loadResults(filename):
+    with open(filename+'.pickle', 'rb') as f:
+        return pickle.load(f)
     
 # RUNS FFT/IFFT on arrays of different sizes on dirrent real/imag array (pass array counraninf array) (if hardcodedgiven)). 
 # TODO custom array values are not implemented yet
@@ -647,11 +557,11 @@ def benchmark_different_sizes(sizes,real = [], imag = [], hardcoded = False):
 #    :param real: Real part of the input array.
 #    :param imag: Imaginary part of the input array.
 #    :param hardcoded: Whether to use hardcoded values or random values.
-def performTestsAndSaveResults(sizes, filename=f"{RESULT_FOLDER_PATH}/fft_ifft_results.json", real=[], imag=[], hardcoded=False):
+def performTestsAndSaveResults(sizes, filename=f"{RESULT_FOLDER_PATH}/fft_ifft_results", real=[], imag=[], hardcoded=False):
     import os
     # Load previous results if the CSV file exists
     existing_results = []
-    if os.path.exists(filename):
+    if os.path.exists(filename+'.pickle'):
         existing_results = loadResults(filename)
         print(f"Loaded existing results from {filename}")
 
@@ -695,24 +605,12 @@ def flatten_results(results):
         'nIFFT_result': [],
         'nIFFT_cycles': [],
         'nIFFT_time': [],
-        'nFFT2_result': [],
-        'nFFT2_cycles': [],
-        'nFFT2_time': [],
-        'nIFFT2_result': [],
-        'nIFFT2_cycles': [],
-        'nIFFT2_time': [],
         'vFFT_result': [],
         'vFFT_cycles': [],
         'vFFT_time': [],
         'vIFFT_result': [],
         'vIFFT_cycles': [],
         'vIFFT_time': [],
-        'vFFT2_result': [],
-        'vFFT2_cycles': [],
-        'vFFT2_time': [],
-        'vIFFT2_result': [],
-        'vIFFT2_cycles': [],
-        'vIFFT2_time': []
     }
 
 # Flatten the data
@@ -740,16 +638,6 @@ def flatten_results(results):
         data['nIFFT_cycles'].append(result['nIFFT']['cycles'])
         data['nIFFT_time'].append(result['nIFFT']['time'])
         
-        # nFFT2
-        data['nFFT2_result'].append((result['nFFT2']['result']))
-        data['nFFT2_cycles'].append(result['nFFT2']['cycles'])
-        data['nFFT2_time'].append(result['nFFT2']['time'])
-        
-        # nIFFT2
-        data['nIFFT2_result'].append((result['nIFFT2']['result']))
-        data['nIFFT2_cycles'].append(result['nIFFT2']['cycles'])
-        data['nIFFT2_time'].append(result['nIFFT2']['time'])
-        
         # vFFT
         data['vFFT_result'].append((result['vFFT']['result']))
         data['vFFT_cycles'].append(result['vFFT']['cycles'])
@@ -760,14 +648,8 @@ def flatten_results(results):
         data['vIFFT_cycles'].append(result['vIFFT']['cycles'])
         data['vIFFT_time'].append(result['vIFFT']['time'])
         
-        # vFFT2
-        data['vFFT2_result'].append((result['vFFT2']['result']))
-        data['vFFT2_cycles'].append(result['vFFT2']['cycles'])
-        data['vFFT2_time'].append(result['vFFT2']['time'])
-        
-        # vIFFT2
-        data['vIFFT2_result'].append((result['vIFFT2']['result']))
-        data['vIFFT2_cycles'].append(result['vIFFT2']['cycles'])
-        data['vIFFT2_time'].append(result['vIFFT2']['time'])
-        
+    for i in data['vIFFT_result']:
+        print(i)
+      
+    
     return(data)

@@ -1,5 +1,4 @@
 from src.python.functions import *
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -9,7 +8,7 @@ import seaborn as sns
 
 # First RUN FFT/IFFT ON DIFFERENT SIZES AND SAVE THE RESULTS
 # Define the sizes for testing. must be power of 2. You can change this to run on different sizes
-sizes = [2 ** i for i in range(2, 17)]  # 2**16 is the limit
+sizes = [2 ** i for i in range( 5)]  # 2**16 is the limit
 results = performTestsAndSaveResults(sizes)
 results = flatten_results(results)
 fig_size = (12,7)
@@ -28,30 +27,28 @@ The data has array of size and input,
 and then result, cycles, time for
 npFFT/npIFFT
 nFFT/nIFFT
-nFFT2/nIFFT
 vFFT/vIFFT
-vFFT2/vIFFT2
 """
 
 
 # Make plots and save to pdf
 with PdfPages(results_folder + report_filename) as pdf:
     
-    # Veer Instruction Cycle Count Differnce Between FFT and vFFT2 of Different input sizes
+    # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes
     plt.figure(figsize=fig_size)
     plt.plot(df['size'], df['nFFT_cycles'], label='FFT Cycles', marker='D')
-    plt.plot(df['size'], df['vFFT2_cycles'],label='vFFT Cycles', marker='x')
+    plt.plot(df['size'], df['vFFT_cycles'],label='vFFT Cycles', marker='x')
     plt.ylabel('Instruction Count')
     plt.xlabel('Input Size (log)')
     plt.xscale('log')
     plt.legend()
     plt.title("VeeR Instruction Count for FFT and vFFT")
-    pdf.savefig()
+    pdf.savefig()    
     plt.close() 
     
     # # Improvement of vFFT over FFT of Different input sizes i.e ratio
     # plt.figure(figsize=(12, 6))
-    # plt.plot(df['size'], df['nFFT_cycles']/df['vFFT2_cycles'], label='vFFT Improvement', marker='x')
+    # plt.plot(df['size'], df['nFFT_cycles']/df['vFFT_cycles'], label='vFFT Improvement', marker='x')
     # plt.ylabel('Improvement')
     # plt.xlabel('Input Size (log)')
     # plt.xscale('log')
@@ -63,7 +60,7 @@ with PdfPages(results_folder + report_filename) as pdf:
     # # Veer Instruction Cycle Count Differnce Between FFT and vFFT of Different input sizes with big O
     # plt.figure(figsize=(12, 6))
     # plt.plot(df['size'], df['nFFT_cycles'], label='FFT Cycles', marker='D')
-    # plt.plot(df['size'], df['vFFT2_cycles'], label='vFFT Cycles', marker='x')
+    # plt.plot(df['size'], df['vFFT_cycles'], label='vFFT Cycles', marker='x')
     # plt.plot(df['size'], pd.DataFrame([(i*i) for i in df['size']]), label='O(n*2)', marker='o')
     # plt.plot(df['size'], pd.DataFrame([i*np.log(i) for i in df['size']]), label='O(n*logn)', marker='o')
     # plt.ylabel('Instruction Count')
@@ -76,13 +73,13 @@ with PdfPages(results_folder + report_filename) as pdf:
     
     sizes = df['size']
     nFFT_times = df['nFFT_time']
-    vFFT2_times = df['vFFT2_time']
+    vFFT_times = df['vFFT_time']
     nFFT_cycles = df['nFFT_cycles']
-    vFFT2_cycles = df['vFFT2_cycles']
+    vFFT_cycles = df['vFFT_cycles']
 
     # Speedup calculation (time and CPU cycles)
-    speedup_time = nFFT_times / vFFT2_times
-    speedup_cycles = nFFT_cycles / vFFT2_cycles
+    speedup_time = nFFT_times / vFFT_times
+    speedup_cycles = nFFT_cycles / vFFT_cycles
     
         # Create a 2x2 subplot
     fig, axs = plt.subplots(2, 2, figsize=fig_size)
@@ -92,7 +89,7 @@ with PdfPages(results_folder + report_filename) as pdf:
     axs[1, 1].plot(sizes, speedup_time, label='Speedup (Time)', marker='o', color='blue')
     axs[1, 1].set_xscale('log')
     axs[1, 1].set_xlabel('Input Size (log scale)')
-    axs[1, 1].set_ylabel('Speedup (nFFT time / vFFT2 time)')
+    axs[1, 1].set_ylabel('Speedup (nFFT time / vFFT time)')
     axs[1, 1].set_title('Runtime Speedup')
     axs[1, 1].legend()
     
@@ -100,7 +97,7 @@ with PdfPages(results_folder + report_filename) as pdf:
     axs[0, 1].plot(sizes, speedup_cycles, label='Speedup (Cycles)', marker='x', color='red')
     axs[0, 1].set_xscale('log')
     axs[0, 1].set_xlabel('Input Size (log scale)')
-    axs[0, 1].set_ylabel('Speedup (nFFT cycles / vFFT2 cycles)')
+    axs[0, 1].set_ylabel('Speedup (nFFT cycles / vFFT cycles)')
     axs[0, 1].set_title('VeeR Cycvle Speedup')
     axs[0, 1].legend()
     
@@ -109,7 +106,7 @@ with PdfPages(results_folder + report_filename) as pdf:
     x = np.arange(len(sizes))  # Label locations
     
     axs[1, 0].bar(x - width/2, nFFT_times, width, label='nFFT Time', color='blue')
-    axs[1, 0].bar(x + width/2, vFFT2_times, width, label='vFFT2 Time', color='orange')
+    axs[1, 0].bar(x + width/2, vFFT_times, width, label='vFFT Time', color='orange')
     axs[1, 0].set_xticks(x)
     axs[1, 0].set_xticklabels(sizes, rotation=45)
     axs[1, 0].set_xlabel('Input Size')
@@ -119,7 +116,7 @@ with PdfPages(results_folder + report_filename) as pdf:
 
     # Bar Plot (Cycles)
     axs[0, 0].bar(x - width/2, nFFT_cycles, width, label='nFFT Cycles', color='blue')
-    axs[0, 0].bar(x + width/2, vFFT2_cycles, width, label='vFFT2 Cycles', color='orange')
+    axs[0, 0].bar(x + width/2, vFFT_cycles, width, label='vFFT Cycles', color='orange')
     axs[0, 0].set_xticks(x)
     axs[0, 0].set_xticklabels(sizes, rotation=45)
     axs[0, 0].set_xlabel('Input Size')
@@ -161,8 +158,8 @@ with PdfPages(results_folder + report_filename) as pdf:
     
         # Ensure npFFT_result and vFFT_result contain comparable data
         # Apply element-wise operations using .apply()
-        vFFT_errors = size_df.apply(lambda row: np.abs(np.array(row['npFFT_result']) - np.array(row['vFFT2_result'])), axis=1)
-        vIFFT_errors = size_df.apply(lambda row: np.abs(np.array(row['input']) - np.array(row['vIFFT2_result'])), axis=1)
+        vFFT_errors = size_df.apply(lambda row: np.abs(np.array(row['npFFT_result']) - np.array(row['vFFT_result'])), axis=1)
+        vIFFT_errors = size_df.apply(lambda row: np.abs(np.array(row['input']) - np.array(row['vIFFT_result'])), axis=1)
         nFFT_errors = size_df.apply(lambda row: np.abs(np.array(row['npFFT_result']) - np.array(row['nFFT_result'])), axis=1)
         nIFFT_errors = size_df.apply(lambda row: np.abs(np.array(row['input']) - np.array(row['nIFFT_result'])), axis=1)
         
