@@ -98,17 +98,34 @@ vReverseIndexOffset:
 
 
 # Function: preload_constants
-# Preloads floating-point constants into registers for use in trigonometric calculations.
+# Preloads floating-point constants into vector registers for use in trigonometric calculations.
+# Values are splatted (copied) onto vector registers because we need them in destructive fma
 # Inputs:
 #   - None
 # Outputs:
-#   - Constants loaded into fs0 through fs11 and ft11.
+#   - Constants loaded into v1 through v13 and ft11.
 # Clobbers:
-#   - t0, fs0-fs11, ft11.
+#   - t0, v1-v13, ft11.
 preload_constants:
+    # Save registers to stack
+    addi sp, sp, -52
+    fsw fs0, 0(sp)
+    fsw fs1, 4(sp)
+    fsw fs2, 8(sp)
+    fsw fs3, 12(sp)
+    fsw fs4, 16(sp)
+    fsw fs5, 20(sp)
+    fsw fs6, 24(sp)
+    fsw fs7, 28(sp)
+    fsw fs8, 32(sp)
+    fsw fs9, 36(sp)
+    fsw fs10, 40(sp)
+    fsw fs11, 44(sp)
+
     # Load addresses of constants into registers
-    # Make use of the fact that all float are 4 bytes and stored consecutively
     la      t0, half_pi_hi          # Load address of half_pi_hi
+
+    # Make use of the fact that all float are 4 bytes and stored consecutively
     flw     fs0, 0(t0)              # Load half_pi_hi into fs0
     flw     fs1, 4(t0)              # Load half_pi_lo into fs1
     flw     fs2, 8(t0)              # Load const_2_pi into fs2
@@ -142,6 +159,21 @@ preload_constants:
     vfmv.v.f v13, ft11
     fcvt.s.w ft11, zero
 
+    # Restore Register
+    flw fs0, 0(sp)
+    flw fs1, 4(sp)
+    flw fs2, 8(sp)
+    flw fs3, 12(sp)
+    flw fs4, 16(sp)
+    flw fs5, 20(sp)
+    flw fs6, 24(sp)
+    flw fs7, 28(sp)
+    flw fs8, 32(sp)
+    flw fs9, 36(sp)
+    flw fs10, 40(sp)
+    flw fs11, 44(sp)
+    addi sp, sp, 52
+
     ret
 
 
@@ -173,7 +205,7 @@ v_sin_cos_approx:
     # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
     vmv.v.v   v15, v4 # move 12582912 to v15  because 
     vfmacc.vv  v15, v21, v3 # a(v21))*6.36619747e-1f(v3) + 12582912.f(v15)
-    vfsub.vf    v15, v15, fs3   # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
+    vfsub.vv    v15, v15, v4   # j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f;
 
     vfnmsac.vv v21, v15, v1   #  a = fmaf (j, -half_pi_hi, a);
     vfnmsac.vv v21, v15, v2   #  a = fmaf (j, -half_pi_lo, a);
