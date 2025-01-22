@@ -7,8 +7,11 @@ VEER-ISS is a RISC-V instruction set simulator (ISS) designed specifically for v
 ### Install Prerequisites:
 
 ```bash
-sudo apt-get update
-sudo apt-get install libboost-all-dev
+sudo apt update
+sudo apt install libboost-all-dev
+sudo apt install g++-9
+sudo apt install g++
+sudo apt install g++-11
 ```
 
 ### Clone the repo:
@@ -21,7 +24,7 @@ git clone https://github.com/chipsalliance/VeeR-ISS.git
 
 ```bash
 cd VeeR-ISS
-make SOFT_FLOAT=1
+make CC=gcc-11 CXX=g++-11 AR=gcc-ar-11 SOFT_FLOAT=1
 ```
 
 ### Add whisper to path:
