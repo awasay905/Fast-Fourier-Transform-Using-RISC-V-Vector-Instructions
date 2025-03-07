@@ -4,18 +4,13 @@
 #include <math.h>
 
 #define PI 3.14159265358979323846f
-#define NEG_PI (-PI)
-#define HALF_PI (PI / 2.0f)
-#define NEG_HALF_PI (-HALF_PI)
-#define TWO_PI (PI * 2.0f)
-#define NEG_TWO_PI (-TWO_PI)
-#define TERMS 12
-#define MAX 200
+#define MAX 1024
 
 int logint(int N) // Calculates the log2 of number
 {
   int k = N, i = 0;
-  while (k) {
+  while (k)
+  {
     k >>= 1;
     i++;
   }
@@ -25,132 +20,124 @@ int logint(int N) // Calculates the log2 of number
 int reverse(int N, int n) // bit wise reverses the number
 {
   int j, p = 0;
-  for (j = 1; j <= logint(N); j++) {
+  for (j = 1; j <= logint(N); j++)
+  {
     if (n & (1 << (logint(N) - j)))
       p |= 1 << (j - 1);
   }
   return p;
 }
 
-float mySin(float x) {
-   // Reduce to [0, π/2] for better accuracy
-    if (x < -HALF_PI) {
-        x = -PI - x;
-    } else if (x > HALF_PI) {
-        x = PI - x;
-    }
-    
-    float x2 = x * x;
-    float term = x;
-    float sum = x;
-    float factorial = 1.0f;
-    
-    for (int i = 1; i <= TERMS; i++) {
-        factorial *= (2*i) * (2*i + 1);
-        term *= -x2;
-        float next_term = term / factorial;
-        sum += next_term;
-    } 
-    
-    return sum;
-}
-
-float myCos(float x) {
-  int sign = 1;
-    // Reduce to [0, π/2] for better accuracy
-    if (x < NEG_HALF_PI) {
-        x = -PI - x;  // 
-        sign = -1;
-    } else if (x > HALF_PI) {
-        x = PI - x;
-        sign = -1;
-    }
-    float x2 = x * x;
-    float term = 1.0f;  // First term is 1 for cosine
-    float sum = 1.0f;   // Sum starts at 1 for cosine
-    float factorial = 1.0f;
-    
-    for (int i = 1; i <= TERMS; i++) {
-        factorial *= (2*i - 1) * (2*i);
-        term *= -x2;
-        float next_term = term / factorial;
-        sum += next_term;
-    } 
-    
-    return sign*sum;
-}
-
-float mySinOld(float x) {
-    float term = x; // The first term is x
-    float sum = x; // Initialize sum of series
-    int sign = -1; // Alternating sign for each term
-
-    for (int i = 3; i <= 2 * TERMS + 1; i += 2) {
-        term *= x * x / ((i - 1) * i); // Calculate the next term in the series
-        sum += sign * term; // Add the term to the sum
-        sign = -sign; // Alternate the sign
-    }
-
-    return sum;
-}
-
-float myCosOld(float x) {
-    float term = 1; // The first term is 1
-    float sum = 1; // Initialize sum of series
-    int sign = -1; // Alternating sign for each term
-
-    for (int i = 2; i <= 2 * TERMS; i += 2) {
-        term *= x * x / ((i - 1) * i); // Calculate the next term in the series
-        sum += sign * term; // Add the term to the sum
-        sign = -sign; // Alternate the sign
-    }
-
-    return sum;
-}
-
 // now i have to change complex to 2 array of float
-void ordina(float* real, float* imag, int N) // using the reverse order in the array
+void ordina(float *real, float *imag, int N) // using the reverse order in the array
 {
   float real_temp[MAX], imag_temp[MAX];
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++)
+  {
     int rev_index = reverse(N, i);
     real_temp[i] = real[rev_index];
     imag_temp[i] = imag[rev_index];
   }
-  for (int j = 0; j < N; j++) {
+  for (int j = 0; j < N; j++)
+  {
     real[j] = real_temp[j];
     imag[j] = imag_temp[j];
   }
 }
 
-void transform(float* real, float* imag, int N, bool inverse) //
+float *sin_cos_approx(float a)
 {
-  ordina(real, imag, N);    // first: reverse order
-  float* W_real = (float*)malloc(N / 2 * sizeof(float));
-  float* W_imag = (float*)malloc(N / 2 * sizeof(float));
-   for (int i = 0; i < N / 2; i++) {
-    float mulValue = -2.0 * PI * i / N;
-    if (inverse) mulValue *= -1;
-    W_real[i] = myCos(mulValue);
-    W_imag[i] = mySin(mulValue);
+  static float result[2];
+
+  const float half_pi_hi = 1.57079637e+0f;  //  0x1.921fb6p+0
+  const float half_pi_lo = -4.37113883e-8f; // -0x1.777a5cp-25
+  float c, j, rc, rs, s, sa, t;
+  int i, ic; // i for sin, ic for cos
+
+  /* subtract closest multiple of pi/2 giving reduced argument and quadrant */
+  j = fmaf(a, 6.36619747e-1f, 12582912.f) - 12582912.f; // 2/pi, 1.5 * 2**23
+  a = fmaf(j, -half_pi_hi, a);
+  a = fmaf(j, -half_pi_lo, a);
+
+  /* phase shift of pi/2 (one quadrant) for cosine */
+  i = (int)j;
+  ic = i + 1;
+
+  sa = a * a;
+  /* select sine approximation or cosine approximation based on quadrant */
+
+  /* Approximate cosine on [-PI/4,+PI/4] with maximum error of 0.87444 ulp */
+  c = 2.44677067e-5f;               //  0x1.9a8000p-16
+  c = fmaf(c, sa, -1.38877297e-3f); // -0x1.6c0efap-10
+  c = fmaf(c, sa, 4.16666567e-2f);  //  0x1.555550p-5
+  c = fmaf(c, sa, -5.00000000e-1f); // -0x1.000000p-1
+  c = fmaf(c, sa, 1.00000000e+0f);  //  1.00000000p+0
+
+  /* Approximate sine on [-PI/4,+PI/4] with maximum error of 0.64196 ulp */
+  s = 2.86567956e-6f;               //  0x1.80a000p-19
+  s = fmaf(s, sa, -1.98559923e-4f); // -0x1.a0690cp-13
+  s = fmaf(s, sa, 8.33338592e-3f);  //  0x1.111182p-7
+  s = fmaf(s, sa, -1.66666672e-1f); // -0x1.555556p-3
+  t = a * sa;
+  s = fmaf(s, t, a);
+
+  /* select sine approximation or cosine approximation based on quadrant */
+  // if (i & 1) is tru then (ic & 1) is false because ic = i + 1
+
+  if (i & 1)
+  {
+    rs = c;
+    rc = s;
   }
-    
-    
+  else
+  {
+    rs = s;
+    rc = c;
+  }
+
+  /* adjust sign based on quadrant */
+  rs = (i & 2) ? (0.0f - rs) : rs;
+  rc = (ic & 2) ? (0.0f - rc) : rc;
+
+  result[0] = rs;
+  result[1] = rc;
+
+  return result;
+}
+
+void transform(float *real, float *imag, int N, bool inverse) //
+{
+  ordina(real, imag, N); // first: reverse order
+  float *W_real = (float *)malloc(N / 2 * sizeof(float));
+  float *W_imag = (float *)malloc(N / 2 * sizeof(float));
+  for (int i = 0; i < N / 2; i++)
+  {
+    float mulValue = -2.0 * PI * i / N;
+    if (inverse)
+      mulValue *= -1;
+    float *sincos = sin_cos_approx(mulValue);
+    W_real[i] = sincos[1];
+    W_imag[i] = sincos[0];
+  }
+
   int n = 1;
   int a = N / 2;
-  for (int j = 0; j < logint(N); j++) {
-    for (int i = 0; i < N; i++) {
-      if (!(i & n)) {
+  for (int j = 0; j < logint(N); j++)
+  {
+    for (int i = 0; i < N; i++)
+    {
+      if (!(i & n))
+      {
         float temp_real = real[i];
         float temp_imag = imag[i];
-        
+
         int k = (i * a) % (n * a);
         float W_real_k = W_real[k];
         float W_imag_k = W_imag[k];
-        
+
         float temp1_real = W_real_k * real[i + n] - W_imag_k * imag[i + n];
         float temp1_imag = W_real_k * imag[i + n] + W_imag_k * real[i + n];
-        
+
         real[i] = temp_real + temp1_real;
         imag[i] = temp_imag + temp1_imag;
         real[i + n] = temp_real - temp1_real;
@@ -164,253 +151,78 @@ void transform(float* real, float* imag, int N, bool inverse) //
   free(W_imag);
 }
 
-void FFT(float* real, float* imag, int N, float d)
+void FFT(float *real, float *imag, int N, float d)
 {
   transform(real, imag, N, false);
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++)
+  {
     real[i] *= d; // multiplying by step
     imag[i] *= d;
   }
 }
 
-void IFFT(float* real, float* imag, int N, float d)
+void IFFT(float *real, float *imag, int N, float d)
 {
   transform(real, imag, N, true);
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++)
+  {
     real[i] /= N; // multiplying by step
     imag[i] /= N;
   }
 }
 
-void testSineCosine(int N) {
-    float max_error_new_sin = 0.0f, max_error_old_sin = 0.0f;
-    float max_error_new_cos = 0.0f, max_error_old_cos = 0.0f;
-
-    // Loop to test each i in the range [0, N/2)
-    for (int i = 0; i < N / 2; i++) {
-        float mulValue = -1.0f * TWO_PI * i / N;
-
-        // Get values from your implementations
-        float new_cos = myCos(mulValue);
-        float new_sin = mySin(mulValue);
-        float old_cos = myCosOld(mulValue);
-        float old_sin = mySinOld(mulValue);
-
-        // Get values from C library's cos and sin
-        float c_cos = cosf(mulValue);
-        float c_sin = sinf(mulValue);
-
-        // Calculate errors for both sine and cosine
-        float error_new_sin = fabsf(new_sin - c_sin);
-        float error_old_sin = fabsf(old_sin - c_sin);
-        float error_new_cos = fabsf(new_cos - c_cos);
-        float error_old_cos = fabsf(old_cos - c_cos);
-
-
-        // Update max errors
-        if (error_new_sin > max_error_new_sin) max_error_new_sin = error_new_sin;
-        if (error_old_sin > max_error_old_sin) max_error_old_sin = error_old_sin;
-        if (error_new_cos > max_error_new_cos) max_error_new_cos = error_new_cos;
-        if (error_old_cos > max_error_old_cos) max_error_old_cos = error_old_cos;
-    }
-
-    // Print the results
-    printf("Results for N = %d:\n", N);
-    printf("  Max Error (New Sin): %1.18f\n", max_error_new_sin);
-    printf("  Max Error (Old Sin): %1.18f\n", max_error_old_sin);
-    printf("  Max Error (New Cos): %1.18f\n", max_error_new_cos);
-    printf("  Max Error (Old Cos): %1.18f\n", max_error_old_cos);
-
-    // Print the differences between new and old implementations
-    printf("  Max Error Difference (New vs Old Sin): %1.18f\n", fabsf(max_error_new_sin - max_error_old_sin));
-    printf("  Max Error Difference (New vs Old Cos): %1.18f\n", fabsf(max_error_new_cos - max_error_old_cos));
-    printf("\n");
-}
-// Function to compute sin(x) using Taylor series
-float sin_approx(float a) {
-  
-  const float half_pi_hi =  1.57079637e+0f; //  0x1.921fb6p+0
-    const float half_pi_lo = -4.37113883e-8f; // -0x1.777a5cp-25
-    float c, j, r, s, sa, t;
-    int i;
-
-    /* subtract closest multiple of pi/2 giving reduced argument and quadrant */
-    j = fmaf (a, 6.36619747e-1f, 12582912.f) - 12582912.f; // 2/pi, 1.5 * 2**23
-    a = fmaf (j, -half_pi_hi, a);
-    a = fmaf (j, -half_pi_lo, a);
-
-    /* phase shift of pi/2 (one quadrant) for cosine */
-    i = (int)j;
-    //i = i + 1;
-
-    sa = a * a;
-    /* select sine approximation or cosine approximation based on quadrant */
-    if (i & 1){ 
-    /* Approximate cosine on [-PI/4,+PI/4] with maximum error of 0.87444 ulp */
-    c =               2.44677067e-5f;  //  0x1.9a8000p-16
-    c = fmaf (c, sa, -1.38877297e-3f); // -0x1.6c0efap-10
-    c = fmaf (c, sa,  4.16666567e-2f); //  0x1.555550p-5
-    c = fmaf (c, sa, -5.00000000e-1f); // -0x1.000000p-1
-    r= fmaf (c, sa,  1.00000000e+0f); //  1.00000000p+0
-
-    } else {
-    /* Approximate sine on [-PI/4,+PI/4] with maximum error of 0.64196 ulp */
-    s =               2.86567956e-6f;  //  0x1.80a000p-19
-    s = fmaf (s, sa, -1.98559923e-4f); // -0x1.a0690cp-13
-    s = fmaf (s, sa,  8.33338592e-3f); //  0x1.111182p-7
-    s = fmaf (s, sa, -1.66666672e-1f); // -0x1.555556p-3
-    t = a * sa;
-    r = fmaf (s, t, a);
-    }
-    /* adjust sign based on quadrant */
-    r = (i & 2) ? (0.0f - r) : r;
-
-    return r;
-}
-
-// Function to compute cos(x) using Taylor series
-float cos_approx(float a) {
-  
-  const float half_pi_hi =  1.57079637e+0f; //  0x1.921fb6p+0
-    const float half_pi_lo = -4.37113883e-8f; // -0x1.777a5cp-25
-    float c, j, r, s, sa, t;
-    int i;
-
-    /* subtract closest multiple of pi/2 giving reduced argument and quadrant */
-    j = fmaf (a, 6.36619747e-1f, 12582912.f) - 12582912.f; // 2/pi, 1.5 * 2**23
-    a = fmaf (j, -half_pi_hi, a);
-    a = fmaf (j, -half_pi_lo, a);
-
-    /* phase shift of pi/2 (one quadrant) for cosine */
-    i = (int)j;
-    i = i + 1;
-
-    sa = a * a;
-    /* select sine approximation or cosine approximation based on quadrant */
-
-     if (i & 1){ 
-    /* Approximate cosine on [-PI/4,+PI/4] with maximum error of 0.87444 ulp */
-    c =               2.44677067e-5f;  //  0x1.9a8000p-16
-    c = fmaf (c, sa, -1.38877297e-3f); // -0x1.6c0efap-10
-    c = fmaf (c, sa,  4.16666567e-2f); //  0x1.555550p-5
-    c = fmaf (c, sa, -5.00000000e-1f); // -0x1.000000p-1
-    r= fmaf (c, sa,  1.00000000e+0f); //  1.00000000p+0
-
-    } else {
-    /* Approximate sine on [-PI/4,+PI/4] with maximum error of 0.64196 ulp */
-    s =               2.86567956e-6f;  //  0x1.80a000p-19
-    s = fmaf (s, sa, -1.98559923e-4f); // -0x1.a0690cp-13
-    s = fmaf (s, sa,  8.33338592e-3f); //  0x1.111182p-7
-    s = fmaf (s, sa, -1.66666672e-1f); // -0x1.555556p-3
-    t = a * sa;
-    r = fmaf (s, t, a);
-    }
-    /* adjust sign based on quadrant */
-    r = (i & 2) ? (0.0f - r) : r;
-
-    return r;
-}
-
-float* sin_cos_approx(float a) {
-    static float result[2];
-  
-    const float half_pi_hi =  1.57079637e+0f; //  0x1.921fb6p+0
-    const float half_pi_lo = -4.37113883e-8f; // -0x1.777a5cp-25
-    float c, j, rc, rs, s, sa, t;
-    int i, ic; //i for sin, ic for cos
-
-    /* subtract closest multiple of pi/2 giving reduced argument and quadrant */
-    j = fmaf (a, 6.36619747e-1f, 12582912.f) - 12582912.f; // 2/pi, 1.5 * 2**23
-    a = fmaf (j, -half_pi_hi, a);
-    a = fmaf (j, -half_pi_lo, a);
-
-    /* phase shift of pi/2 (one quadrant) for cosine */
-    i = (int)j;
-    ic = i + 1;
-
-    sa = a * a;
-    /* select sine approximation or cosine approximation based on quadrant */
-
-    
-    /* Approximate cosine on [-PI/4,+PI/4] with maximum error of 0.87444 ulp */
-    c =               2.44677067e-5f;  //  0x1.9a8000p-16
-    c = fmaf (c, sa, -1.38877297e-3f); // -0x1.6c0efap-10
-    c = fmaf (c, sa,  4.16666567e-2f); //  0x1.555550p-5
-    c = fmaf (c, sa, -5.00000000e-1f); // -0x1.000000p-1
-    c= fmaf (c, sa,  1.00000000e+0f); //  1.00000000p+0
-
-    
-    /* Approximate sine on [-PI/4,+PI/4] with maximum error of 0.64196 ulp */
-    s =               2.86567956e-6f;  //  0x1.80a000p-19
-    s = fmaf (s, sa, -1.98559923e-4f); // -0x1.a0690cp-13
-    s = fmaf (s, sa,  8.33338592e-3f); //  0x1.111182p-7
-    s = fmaf (s, sa, -1.66666672e-1f); // -0x1.555556p-3
-    t = a * sa;
-    s = fmaf (s, t, a);
-
-    /* select sine approximation or cosine approximation based on quadrant */
-    // if (i & 1) is tru then (ic & 1) is false because ic = i + 1
-
-    if (i & 1) {
-      rs = c;
-      rc = s;
-    } else {
-      rs = s;
-      rc = c;
-    }
-  
-
-    /* adjust sign based on quadrant */
-    rs = (i & 2) ? (0.0f - rs) : rs;
-    rc = (ic & 2) ? (0.0f - rc) : rc;
-
-    result[0] = rs;
-    result[1] = rc;
-
-    return result;
-}
 
 
 int main()
 {
-  int inverse = 0;  // Set to 1 for inverse
-  float err = 0;
-  int N = 1<<25;
-    for (int i = 0; i < N/2; i++) {
-        // Calculate mulValue
-        float mulValue = -2.0 * PI * i / N;
-        if (inverse) {
-            mulValue *= -1;
-        }
+  int inverse = 0; // Set to 1 for inverse
+  int n = 1024;    // array size
+  float d = 1;     // step size = 1
 
-        // Calculate sin and cos using Taylor series
-        float* r = sin_cos_approx(mulValue);
-        float sin_taylor = r[0];
-        float cos_taylor = r[1];
+  float real[MAX] = {
+      3.491443, 2.861880, 1.291273, 0.900920, 0.599864, 0.602246, 0.791552, 0.285887, 0.038353, -0.738754, 0.988629, 0.732330, 0.194250, 0.203752, 0.825382, -0.069967, -0.909071, -0.326565, 0.451520, 0.631300, 1.746533, 1.028654, 1.300119, 1.076932, 0.385788, 0.033020, -0.104959, 1.276525, 1.904034, 1.959743, 1.118912, 0.047331,
+      -0.013475, -0.010456, -1.351004, -3.074256, -4.095834, -3.519382, -4.728606, -2.860555, -0.807816, 0.204986, 0.286195, -0.032142, -0.927839, -1.191217, -0.573972, 0.386484, -0.878874, -0.637890, 0.257653, 1.566660, 1.647269, 1.793931, 2.554950, 1.576306, 1.118823, 0.161312, -0.754813, -0.076751, 0.305561, 0.147687, 0.420895, 0.264165,
+      0.391111, -0.545860, -0.141808, -0.750452, 0.575127, 1.935915, 2.093423, 1.190403, 1.114292, 2.142582, 2.292329, 0.517748, 0.554737, -1.045071, -2.165087, -2.017227, -1.033783, -0.168664, 0.587045, 1.399436, -0.138891, -1.370891, -1.116695, -0.887736, -1.159847, -2.215914, -2.499648, -1.503773, -1.278413, 0.236846, 0.046963, 0.903379,
+      1.069610, 0.343586, -0.772725, -0.906991, -1.012671, -1.000133, -0.796451, -0.381068, -1.431787, -0.260672, -0.380134, -1.024414, -0.632107, 0.903776, 2.346067, 1.470636, 1.284355, 1.998574, 2.117112, 2.606181, 2.851587, 1.893316, 0.646846, 0.219702, 0.716130, -0.118513, 1.516294, 1.874001, 1.458983, 0.081626, -1.118593, -1.165807,
+      -0.726971, -1.403407, -2.080364, -3.110689, -1.970626, -1.766761, -1.052495, -0.304064, 0.645508, 0.943554, 0.611170, 1.016399, 0.073413, -0.126776, 1.048028, 0.162249, -0.906945, -0.689465, -0.732064, -1.354605, -2.527149, -1.110068, -0.636588, 0.023221, -0.375417, -0.849514, -1.449793, -1.024231, 0.007707, -0.019057, -1.014004, -0.098654,
+      -0.539820, 0.494781, 1.448875, 2.643937, 3.727689, 3.486365, 2.142345, 0.804263, 1.386763, 1.821539, 0.857358, 0.364950, -0.157072, -0.376923, -0.226651, -0.156861, 0.499649, -0.666199, 0.419631, 0.439037, -0.656129, -0.808162, 0.455563, 0.490402, -0.200215, -0.552273, -0.275804, -1.528230, -1.456934, -2.195121, -1.444715, -0.450180,
+      0.371524, 0.452606, -0.994822, -1.239173, -0.891565, -1.180582, -1.259533, -2.188775, -2.544792, -1.785411, -1.025952, 0.147436, 1.528129, 3.778771, 2.363412, 1.245178, 0.773143, 0.608768, 0.636478, 0.731072, 0.248168, -0.166180, -0.547210, 1.190125, 0.540213, 0.147064, 0.347905, 0.755951, -0.279490, -0.974436, -0.013785, 0.352094,
+      0.959707, 1.632867, 1.040909, 1.291490, 0.996111, 0.225027, 0.030796, -0.023200, 1.626490, 1.822305, 1.993790, 0.764603, 0.031697, -0.013646, -0.133297, -1.717619, -3.406414, -3.990063, -3.678342, -4.687487, -2.302049, -0.551877, 0.273696, 0.290784, -0.243296, -0.978952, -1.249714, -0.196208, 0.153278, -0.923715, -0.553597, 0.596402,
+      1.626330, 1.664370, 1.898393, 2.581357, 1.282141, 1.149635, -0.232726, -0.618765, 0.005685, 0.325921, 0.147707, 0.435396, 0.288422, 0.250510, -0.563926, -0.173583, -0.714758, 0.960924, 2.070626, 1.930587, 1.107784, 1.187895, 2.448350, 1.861562, 0.504918, 0.335471, -1.335552, -2.289936, -1.786375, -0.907820, 0.044475, 0.717707,
+      1.395889, -0.652021, -1.271780, -1.145950, -0.799553, -1.390801, -2.367041, -2.343304, -1.425070, -1.056776, 0.367640, 0.050806, 1.097979, 0.957631, 0.103959, -0.853482, -0.952941, -0.955647, -1.090563, -0.545892, -0.662445, -1.286557, -0.154710, -0.494878, -1.111838, -0.330175, 1.205729, 2.437343, 1.154737, 1.559495, 1.941704, 2.266483,
+      2.642212, 2.817208, 1.579018, 0.480112, 0.325261, 0.595541, -0.018903, 1.828987, 1.767275, 1.293556, -0.231376, -1.254063, -0.994841, -0.863119, -1.443391, -2.422545, -2.936417, -1.889581, -1.640654, -0.951053, -0.058961, 0.719380, 0.953885, 0.563066, 1.082076, -0.276276, 0.236031, 0.963207, -0.069028, -0.992308, -0.600493, -0.818683,
+      -1.620367, -2.450155, -0.841967, -0.586882, 0.089421, -0.518835, -0.962922, -1.460471, -0.861095, 0.218817, -0.351226, -0.834356, -0.157469, -0.432882, 0.690931, 1.696988, 2.846318, 3.885869, 3.187233, 1.912046, 0.643909, 1.720670, 1.564975, 0.806980, 0.196058, -0.186232, -0.391946, -0.213686, -0.020709, 0.383353, -0.711809, 0.691905,
+      0.178737, -0.794418, -0.603017, 0.587108, 0.405064, -0.405260, -0.383794, -0.541056, -1.539980, -1.601885, -2.150974, -1.259756, -0.220370, 0.424932, 0.329425, -1.320624, -1.003295, -1.056841, -1.076983, -1.477024, -2.286633, -2.512171, -1.574673, -0.861720, 0.394121, 1.989331, 3.848593, 1.923126, 1.205004, 0.673241, 0.609394, 0.693153,
+      0.622293, 0.240573, -0.409652, -0.207133, 1.230911, 0.396780, 0.105305, 0.522482, 0.602007, -0.467743, -0.957365, 0.257826, 0.267498, 1.301026, 1.444908, 1.109789, 1.252854, 0.885939, 0.108366, 0.003019, 0.174278, 1.868582, 1.781523, 1.932097, 0.458960, 0.028182, 0.004437, -0.344627, -2.068582, -3.710677, -3.810168, -3.957718,
+      -4.434681, -1.817003, -0.312783, 0.296499, 0.282211, -0.469535, -1.010598, -1.244256, 0.151945, -0.159555, -0.887501, -0.442934, 0.931725, 1.640714, 1.683125, 2.052542, 2.475500, 1.091666, 1.080328, -0.554245, -0.454215, 0.086484, 0.304347, 0.194778, 0.403119, 0.349555, 0.036356, -0.481640, -0.301518, -0.533187, 1.290625, 2.167296,
+      1.725914, 1.071040, 1.322273, 2.663612, 1.389757, 0.572831, 0.021722, -1.583956, -2.348270, -1.550874, -0.767475, 0.226280, 0.887214, 1.224342, -1.058768, -1.167960, -1.144707, -0.771701, -1.625730, -2.488407, -2.124141, -1.410623, -0.738313, 0.365310, 0.168961, 1.203589, 0.838138, -0.157432, -0.880243, -1.006070, -0.904139, -1.147017,
+      -0.322397, -0.984969, -1.032530, -0.137946, -0.619365, -1.128575, -0.009479, 1.521287, 2.374253, 0.959800, 1.802321, 1.900147, 2.402973, 2.692225, 2.696160, 1.292141, 0.336335, 0.477259, 0.384738, 0.251772, 2.002284, 1.684937, 1.054590, -0.506772, -1.338578, -0.825720, -1.038055, -1.492790, -2.758743, -2.671446, -1.869176, -1.481486,
+      -0.844350, 0.179324, 0.779550, 0.914593, 0.596151, 1.014806, -0.502674, 0.591600, 0.803628, -0.305911, -0.994666, -0.565033, -0.906350, -1.925198, -2.214056, -0.689363, -0.470381, 0.061675, -0.624309, -1.103255, -1.407931, -0.678452, 0.351958, -0.684923, -0.579934, -0.292604, -0.236221, 0.863662, 1.955085, 3.056193, 3.951512, 2.884452,
+      1.652517, 0.626698, 1.964109, 1.302553, 0.751411, 0.049912, -0.224377, -0.371480, -0.225477, 0.163081, 0.143776, -0.580250, 0.826993, -0.074411, -0.898313, -0.331729, 0.635884, 0.302596, -0.574671, -0.214174, -0.864691, -1.482512, -1.798462, -2.022538, -1.078547, -0.009420, 0.463296, 0.105518, -1.519095, -0.816585, -1.199744, -1.003088,
+      -1.703080, -2.373587, -2.407229, -1.402795, -0.648630, 0.625107, 2.514532, 3.688386, 1.594997, 1.136775, 0.614917, 0.600867, 0.754921, 0.490676, 0.227968, -0.630830, 0.218869, 1.132775, 0.303061, 0.087261, 0.687095, 0.391733, -0.637907, -0.838386, 0.435890, 0.264974, 1.578798, 1.247579, 1.197237, 1.199506, 0.740420, 0.045759,
+      -0.048650, 0.485126, 1.980110, 1.804325, 1.752621, 0.236763, 0.018687, 0.029196, -0.635704, -2.405588, -3.949517, -3.624473, -4.287673, -4.000405, -1.417125, -0.096997, 0.293569, 0.236062, -0.674562, -1.050840, -1.134767, 0.394005, -0.475530, -0.808500, -0.278155, 1.221353, 1.637764, 1.703276, 2.240606, 2.241707, 1.023067, 0.878869,
+      -0.753146, -0.299742, 0.170045, 0.250975, 0.275078, 0.343215, 0.414953, -0.206108, -0.342676, -0.484513, -0.225044, 1.556499, 2.212255, 1.513738, 1.064911, 1.533708, 2.724812, 0.967765, 0.646421, -0.342130, -1.801743, -2.321599, -1.341233, -0.595326, 0.367982, 1.085967, 0.880154, -1.311123, -1.103141, -1.094051, -0.825750, -1.845322,
+      -2.563938, -1.881117, -1.417988, -0.370973, 0.266792, 0.383831, 1.219033, 0.705148, -0.410717, -0.880527, -1.043542, -0.887523, -1.125979, -0.195738, -1.263500, -0.735170, -0.187114, -0.755126, -1.053585, 0.306115, 1.840255, 2.159356, 0.926144, 1.961278, 1.911547, 2.504398, 2.757530, 2.486652, 1.044326, 0.231597, 0.627952, 0.143501,
+      0.650056, 2.040493, 1.624205, 0.753850, -0.743462, -1.355367, -0.705281, -1.205650, -1.598994, -3.017973, -2.383986, -1.867062, -1.317169, -0.707845, 0.383556, 0.839328, 0.826903, 0.709704, 0.798344, -0.551233, 0.868229, 0.603724, -0.538993, -0.924159, -0.585913, -1.009365, -2.219365, -1.863573, -0.636586, -0.301522, -0.048436, -0.699449,
+      -1.250282, -1.306174, -0.468871, 0.364576, -0.940349, -0.330010, -0.440934, 0.010707, 1.035120, 2.204614, 3.281324, 3.902065, 2.608059, 1.361096, 0.767663, 2.063832, 1.086332, 0.661764, -0.055963, -0.276206, -0.323538, -0.240515, 0.349519, -0.165396, -0.299646, 0.811116, -0.299225, -0.949043, -0.034734, 0.619936, 0.170349, -0.667609,
+      -0.110623, -1.174900, -1.415146, -1.995310, -1.841281, -0.887551, 0.163361, 0.490930, -0.216396, -1.558635, -0.732199, -1.273225, -1.001510, -1.904797, -2.453957, -2.234388, -1.268777, -0.394095, 0.866759, 3.042787, 3.334412, 1.392370, 1.030927, 0.595571, 0.593567, 0.795760, 0.369510, 0.169819, -0.759311, 0.645359, 0.946497, 0.242419,
+      0.115410, 0.798710, 0.158617, -0.789038, -0.618699, 0.495903, 0.385987, 1.734751, 1.097990, 1.267737, 1.141224, 0.566797, 0.028580, -0.098758, 0.873104, 1.976459, 1.877943, 1.467502, 0.105353, 0.001393, 0.034874, -0.981617, -2.738499, -4.085086, -3.508182, -4.574767, -3.449608, -1.089025, 0.080225, 0.286084, 0.132739, -0.830413,
+      -1.114073, -0.904945, 0.476707, -0.728166, -0.720271, -0.042962, 1.435825, 1.637468, 1.734433, 2.425085, 1.920037, 1.051887, 0.555954, -0.813719, -0.174246, 0.248464, 0.189311, 0.360669, 0.287024, 0.441152, -0.417698, -0.209641, -0.657036, 0.163308, 1.767083, 2.190041, 1.327710, 1.078648, 1.818046, 2.597924, 0.666700, 0.655353,
+      -0.709157, -1.996771, -2.206105, -1.171044, -0.390402, 0.479828, 1.276043, 0.401379, -1.403677, -1.091234, -0.999155, -0.961600, -2.042015, -2.572954, -1.661249, -1.390662, -0.023565, 0.136978, 0.648301, 1.164683, 0.544226, -0.623480, -0.883265, -1.046940, -0.921934, -1.005248, -0.212961, -1.425456, -0.461390, -0.274673, -0.896166, -0.882978,
+      0.608312, 2.130956, 1.833930, 1.049566, 2.020038, 1.988454, 2.567479, 2.820858, 2.207884, 0.832593, 0.187576, 0.722137, -0.049065, 1.100028, 1.980466, 1.560143, 0.418758, -0.946496, -1.295256, -0.668660, -1.330752, -1.794363, -3.143331, -2.137311, -1.841482, -1.171313, -0.526890, 0.538515, 0.898604, 0.712954, 0.869751, 0.461605,
+      -0.413206, 1.023122, 0.386765, -0.748136, -0.809486, -0.648851, -1.151887, -2.439348, -1.470076, -0.637890, -0.120463, -0.207720, -0.766401, -1.374768, -1.173707, -0.233896, 0.236244, -1.057277, -0.155906, -0.538213, 0.264720, 1.226725, 2.433970, 3.513725, 3.738525, 2.365551, 1.062326, 1.041641, 2.006885, 0.940357, 0.528891, -0.120417,
+      -0.332847, -0.267813, -0.226990, 0.479461, -0.463454, 0.062445, 0.666658, -0.491675, -0.924100, 0.240998, 0.564583, 0.000376, -0.658937, -0.124988, -1.407817, -1.395037, -2.139733, -1.640878, -0.677405, 0.288922, 0.496109, -0.603053, -1.448916, -0.765478, -1.260775, -1.090399, -2.066016, -2.517936, -2.016026, -1.152941, -0.120272, 1.156951};
+  float imag[MAX] = {0};
 
-        // Calculate sin and cos using standard library functions
-        float sin_lib = sin(mulValue);
-        float cos_lib = cos(mulValue);
-
-        // Compare results
-        err += fabs(cos_taylor - cos_lib);
-    }
-    printf("Summed error: %.16f\n", err );
-    return 0;
-  int n = 8; // array size
-    float d = 1;  // step size = 1
-    float real[MAX] = {1, 2, 3, 4, 5, 6, 7, 8};
-    float imag[MAX] = {0,0,0,0,1,1,1,1};
-  
   FFT(real, imag, n, d);
-  //printf("After FFT Value: \n");
-  // Now the matrix has the FFT
+  printf("FFT Result:\n");
+  for (int j = 0; j < n; j++)
+    printf("%f + %fi\n", real[j], imag[j]);
+
+  IFFT(real, imag, n, d);
+  printf("IFFT Result:\n");
   for (int j = 0; j < n; j++)
     printf("%f + %fi\n", real[j], imag[j]);
     
-    IFFT(real, imag, n, d);
-    printf("After Invese r FFT Value: \n");
-    for (int j = 0; j < n; j++)
-    printf("%f + %fi\n", real[j], imag[j]);
   return 0;
 }
