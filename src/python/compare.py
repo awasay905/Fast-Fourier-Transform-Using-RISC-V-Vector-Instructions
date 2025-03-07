@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 N = 1024  # Number of points
 
 # Load CSV file
-loaded_data = np.loadtxt("signal_data.csv", delimiter=",", skiprows=1)
+loaded_data = np.loadtxt("./src/testData/signal_data.csv", delimiter=",", skiprows=1)
 
 # Extract time and signal separately
 t = loaded_data[:N, 0]

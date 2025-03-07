@@ -6,10 +6,27 @@ TEST_TEMP_FOLDER_PATH = './src/assemblyForPython/tempFiles'
 TEST_CODE_FOLDER_PATH = './src/assemblyForPython'
 RESULT_FOLDER_PATH = './results/data'
 
-# Formats given array to string for a readable format for assembly file
 
+def format_array_as_data_string(data: list[float], num_group_size: int = 4, num_per_line: int = 32) -> list[str]:
+    """
+    Format a list of floats into assembly directives for a `.float` statement.
 
-def format_array_as_data_string(data, num_group_size=4, num_per_line=32):
+    Each float is formatted to 12 decimal places and grouped with extra spacing.
+
+    Parameters
+    ----------
+    data : list of float
+        The list of floating-point numbers to format.
+    num_group_size : int, optional
+        Number of floats to group together (default is 4).
+    num_per_line : int, optional
+        Number of floats per line before inserting a newline (default is 32).
+
+    Returns
+    -------
+    list of str
+        A list of strings, each representing a line of assembly `.float` directives.
+    """
     formatted_lines = []
     current_line = ".float "
     for i, value in enumerate(data):
@@ -24,10 +41,27 @@ def format_array_as_data_string(data, num_group_size=4, num_per_line=32):
         formatted_lines.append(current_line.strip(", "))
     return formatted_lines
 
-# Write which type (FFT or IFFT) to perform to assembly file text section
 
+def write_fft_type_to_assembly_file(input_file: str, output_file: str, fft_type: str) -> None:
+    """
+    Modify an assembly file to specify the FFT operation type.
 
-def write_fft_type_to_assembly_file(input_file, output_file, fft_type):
+    This function searches for a line containing both "call" and "XXXX" in the input file
+    and replaces it with a call to the specified FFT type (e.g., "fft" or "ifft").
+
+    Parameters
+    ----------
+    input_file : str
+        Path to the input assembly file.
+    output_file : str
+        Path where the modified assembly file will be saved.
+    fft_type : str
+        The FFT operation type to insert (e.g., "fft" or "ifft").
+
+    Returns
+    -------
+    None
+    """
     # Read the input file
     with open(input_file, 'r') as file:
         lines = file.readlines()
@@ -44,10 +78,31 @@ def write_fft_type_to_assembly_file(input_file, output_file, fft_type):
 
     return
 
-# Write array values to the assembly file data section.
 
+def write_array_to_assembly_file(input_file: str, output_file: str, real: list[int], imag: list[int], array_size: int) -> None:
+    """
+    Insert real and imaginary data arrays into the `.data` section of an assembly file.
 
-def write_array_to_assembly_file(input_file, output_file, real, imag, array_size):
+    The function locates the `.data` section in the input file and inserts the provided real and
+    imaginary arrays (formatted as assembly `.float` directives) along with a data size declaration.
+
+    Parameters
+    ----------
+    input_file : str
+        Path to the input assembly file.
+    output_file : str
+        Path where the modified assembly file will be saved.
+    real : list of int
+        List of real-number values.
+    imag : list of int
+        List of imaginary-number values.
+    array_size : int
+        Size of the data array.
+
+    Returns
+    -------
+    None
+    """
     # Read the input file and find the .data section
     with open(input_file, 'r') as file:
         lines = file.readlines()
@@ -82,10 +137,24 @@ def write_array_to_assembly_file(input_file, output_file, real, imag, array_size
 
     return
 
-# Function to check for the pattern in the buffer to start reading log
 
+def find_log_pattern(lines: list[str]) -> bool:
+    """
+    Check for the presence of required hexadecimal log patterns in the 7th column of the provided lines.
 
-def find_log_pattern(lines):
+    The required values are:
+    "00123000", "00123456", "00234000", "00234567", "00345000", "00345678".
+
+    Parameters
+    ----------
+    lines : list of str
+        List of log file lines to search.
+
+    Returns
+    -------
+    bool
+        True if all required values are found in the 7th column, False otherwise.
+    """
     # Split each line and check if the 7th column has the desired values
     required_values = ["00123000", "00123456",
                        "00234000", "00234567", "00345000", "00345678"]
@@ -101,12 +170,38 @@ def find_log_pattern(lines):
     # Check if we found all required values
     return all(value in found_values for value in required_values)
 
-# Runs assembly code on Veer, saves the log to logFile if deletefiles false,
-# and returns the cpu cycle count and time taken
-# Requires file to have eevrything set in it
 
+def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = True, save_full_log: bool = False) -> tuple[int, float]:
+    """
+    Compile and run an assembly file on the Veer RISC-V simulator, capturing execution logs and performance metrics.
 
-def simulate_on_veer(assembly_file, log_file, delete_files=True, save_full_log=False):
+    This function builds and executes a series of commands to compile the assembly file, convert it,
+    and run a simulation using the 'whisper' tool. It then parses the output to determine the number
+    of retired instructions and the execution time.
+
+    Parameters
+    ----------
+    assembly_file : str
+        Path to the assembly source file.
+    log_file : str
+        Path to save the execution log.
+    delete_files : bool, optional
+        If True, intermediate files are deleted after execution (default is True).
+    save_full_log : bool, optional
+        If True, saves the full log output; otherwise, extracts relevant log portions (default is False).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - An integer representing the number of retired instructions.
+        - A float representing the execution time in seconds.
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If any of the subprocess commands fail.
+    """
     import subprocess as sp
     import re
     import time
@@ -218,10 +313,26 @@ def simulate_on_veer(assembly_file, log_file, delete_files=True, save_full_log=F
 
     return int(retired_instructions), timetaken
 
-# Convert hex values array to float array. HEX should be IEEE format
 
+def hex_to_float(hex_array: list[str]) -> list[float]:
+    """
+    Convert an array of IEEE 754 single-precision hexadecimal strings to floating-point numbers.
 
-def hex_to_float(hex_array):
+    Parameters
+    ----------
+    hex_array : list of str
+        A list of 8-character hexadecimal strings representing IEEE 754 floats.
+
+    Returns
+    -------
+    list of float
+        A list of floating-point numbers corresponding to the input hex values.
+
+    Raises
+    ------
+    ValueError
+        If any hex string is not exactly 8 characters long.
+    """
     import struct
     float_array = []
 
@@ -244,11 +355,23 @@ def hex_to_float(hex_array):
 
     return float_array
 
-# Function to find the pattern twice in the file and return line indices
 
+def find_log_pattern_index(file_name: str) -> list[int]:
+    """
+    Locate the starting line indices where a specific hexadecimal log pattern occurs twice in a file.
 
-def find_log_pattern_index(file_name):
+    The function searches for the pattern defined by a set of required hexadecimal values.
 
+    Parameters
+    ----------
+    file_name : str
+        Path to the log file.
+
+    Returns
+    -------
+    list of int
+        A list containing up to two line indices where the pattern starts.
+    """
     with open(file_name, 'r') as file:
         lines = file.readlines()
 
@@ -281,10 +404,27 @@ def find_log_pattern_index(file_name):
     # Return the line indices where the pattern was found twice
     return pattern_indices
 
-# Reads log file and extract real and imag float values
 
+def process_file(file_name: str, delete_log_files: bool = False) -> np.ndarray:
+    """
+    Process a log file to extract complex numbers represented by separate real and imaginary hex strings.
 
-def process_file(file_name, delete_log_files=False):
+    The function determines the start and end indices based on log patterns, extracts the real and imaginary
+    components from the log, and converts them into floating-point numbers. For vectorized data, the strings
+    are split into 8-character chunks (in reverse order) before conversion.
+
+    Parameters
+    ----------
+    file_name : str
+        Path to the log file.
+    delete_log_files : bool, optional
+        If True, deletes the log file after processing (default is False).
+
+    Returns
+    -------
+    np.ndarray
+        A NumPy array of complex numbers constructed from the extracted real and imaginary parts.
+    """
     import numpy as np
     start_index, end_index = find_log_pattern_index(file_name)
     real = []
@@ -369,10 +509,38 @@ def process_file(file_name, delete_log_files=False):
         print(f"The file {file_name} does not exist.")
         return real, imag
 
-# runs "type", returning the result, cycles and time taken used in a tuple
 
+def run(type: str, real: list[float], imag: list[float], array_size: int, delete_temp_files: bool = True, delete_log_files: bool = False) -> tuple[np.ndarray, int, float]:
+    """
+    Execute a specified FFT/IFFT operation using RISC-V assembly simulation on Veer.
 
-def run(type, real, imag, array_size, delete_temp_files=True, delete_log_files=False):
+    Depending on the 'type' parameter ('FFT', 'IFFT', 'vFFT', or 'vIFFT'), this function prepares the
+    corresponding assembly file, performs necessary modifications, runs the simulation, and processes the
+    output log to extract the result.
+
+    Parameters
+    ----------
+    type : str
+        Type of operation ('FFT', 'IFFT', 'vFFT', or 'vIFFT').
+    real : list of float
+        Real parts of the input array.
+    imag : list of float
+        Imaginary parts of the input array.
+    array_size : int
+        Size of the input data array.
+    delete_temp_files : bool, optional
+        If True, temporary files are deleted after execution (default is True).
+    delete_log_files : bool, optional
+        If True, log files are deleted after processing (default is False).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A NumPy array of complex numbers representing the computed FFT/IFFT result.
+        - An integer representing the number of cycles (from simulation).
+        - A float indicating the execution time in seconds.
+    """
     import os
     import numpy as np
 
@@ -398,71 +566,260 @@ def run(type, real, imag, array_size, delete_temp_files=True, delete_log_files=F
 
     return (result, cycles, time)
 
-# Calculate FFT using numpy, returns the FFT, cycles and the time taken to calculate
 
 
-def npFFT(real, imag, _):
+def npFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, int, float]:
+    """
+    Compute the Fast Fourier Transform (FFT) using NumPy.
+
+    Parameters
+    ----------
+    real : list of float
+        List of real components.
+    imag : list of float
+        List of imaginary components.
+    _ : int
+        Unused parameter (for compatibility).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A NumPy array of 32-bit complex numbers representing the FFT result.
+        - An integer for the number of cycles (placeholder: -1).
+        - A float for the execution time in seconds.
+    """
     import time
-    import numpy as np
-    complex_numbers = np.array(real) + 1j * np.array(imag)
+    complex_numbers = np.array(real, dtype=np.float32) + 1j * np.array(imag, dtype=np.float32)
     start_time = time.time()
-    fft = np.fft.fft(complex_numbers)
+    fft = np.fft.fft(complex_numbers).astype(np.complex64)
     end_time = time.time()
     elapsed_time = end_time - start_time
-    npFFTcycles = -1  # implement later
+    npFFTcycles = -1  # Not implemented
     return fft, npFFTcycles, elapsed_time
 
-# Calculate IFFT using numpy, returns the IFFT, cycles and the time taken to calculate
 
+def npIFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, int, float]:
+    """
+    Compute the Inverse Fast Fourier Transform (IFFT) using NumPy.
 
-def npIFFT(real, imag, _):
+    Parameters
+    ----------
+    real : list of float
+        List of real components.
+    imag : list of float
+        List of imaginary components.
+    _ : int
+        Unused parameter (for compatibility).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A NumPy array of complex numbers representing the IFFT result.
+        - An integer for the number of cycles (placeholder: -1).
+        - A float for the execution time in seconds.
+    """
     import time
-    import numpy as np
     complex_numbers = np.array(real) + 1j * np.array(imag)
     start_time = time.time()
     ifft = np.fft.ifft(complex_numbers)
     end_time = time.time()
     elapsed_time = end_time - start_time
-    npIFFTcycles = -1  # implement later
+    npIFFTcycles = -1  # Not implemented
     return ifft, npIFFTcycles, elapsed_time
 
-# Calculaye FFT using risc v assembly code simulated on veer
 
+def nFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+    """
+    Compute the FFT using RISC-V assembly code simulation on Veer.
 
-def nFFT(real, imag, array_size, deleteFiles=True):
+    Parameters
+    ----------
+    real : list of float
+        List of real components.
+    imag : list of float
+        List of imaginary components.
+    array_size : int
+        Size of the input data array.
+    deleteFiles : bool, optional
+        If True, temporary files are deleted after execution (default is True).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A NumPy array of complex numbers representing the FFT result.
+        - An integer for the number of cycles (from simulation).
+        - A float for the execution time in seconds.
+    """
     return run('FFT', real, imag, array_size, deleteFiles, False)
 
-# Calculaye IFFT using risc v assembly code simulated on veer
 
+def nIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+    """
+    Compute the IFFT using RISC-V assembly code simulation on Veer.
 
-def nIFFT(real, imag, array_size, deleteFiles=True):
+    Parameters
+    ----------
+    real : list of float
+        List of real components.
+    imag : list of float
+        List of imaginary components.
+    array_size : int
+        Size of the input data array.
+    deleteFiles : bool, optional
+        If True, temporary files are deleted after execution (default is True).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A NumPy array of complex numbers representing the IFFT result.
+        - An integer for the number of cycles (from simulation).
+        - A float for the execution time in seconds.
+    """
     return run('IFFT', real, imag, array_size, deleteFiles, False)
 
-# Calculaye FFT using vectorized risc v assembly code simulated on veer
 
+def vFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+    """
+    Compute the FFT using vectorized RISC-V assembly code simulation on Veer.
 
-def vFFT(real, imag, array_size, deleteFiles=True):
+    Parameters
+    ----------
+    real : list of float
+        List of real components.
+    imag : list of float
+        List of imaginary components.
+    array_size : int
+        Size of the input data array.
+    deleteFiles : bool, optional
+        If True, temporary files are deleted after execution (default is True).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A NumPy array of complex numbers representing the FFT result (truncated to array_size elements).
+        - An integer for the number of cycles (from simulation).
+        - A float for the execution time in seconds.
+    """
     return run('vFFT', real, imag, array_size, deleteFiles, False)
 
-# Calculaye IFFT using vecctorized risc v assembly code simulated on veer
 
+def vIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+    """
+    Compute the IFFT using vectorized RISC-V assembly code simulation on Veer.
 
-def vIFFT(real, imag, array_size, deleteFiles=True):
+    Parameters
+    ----------
+    real : list of float
+        List of real components.
+    imag : list of float
+        List of imaginary components.
+    array_size : int
+        Size of the input data array.
+    deleteFiles : bool, optional
+        If True, temporary files are deleted after execution (default is True).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - A NumPy array of complex numbers representing the IFFT result (truncated to array_size elements).
+        - An integer for the number of cycles (from simulation).
+        - A float for the execution time in seconds.
+    """
     return run('vIFFT', real, imag, array_size, deleteFiles, False)
 
 
-# Performs FFT and IFFT on array of n size, of real and imag. if hardcoded if flase then random floats
-# from -1000 to 1000 will be used
-# Returns FFT, IFFT and time taken in performing them on numpy, riscv, and nevctorized risc v
-def compute_FFT_IFFT_with_benchmarks(array_size, real=[], imag=[], hardcoded=False):
+from typing import TypedDict
+from numpy.typing import NDArray
+
+class FFTResult(TypedDict):
+    result: NDArray[np.complex64]
+    cycles: int
+    time: float
+
+class BenchmarkResults(TypedDict):
+    size: int
+    input: NDArray[np.complex64]
+    npFFT: FFTResult
+    npIFFT: FFTResult
+    nFFT: FFTResult
+    nIFFT: FFTResult
+    vFFT: FFTResult
+    vIFFT: FFTResult
+
+    
+def compute_FFT_IFFT_with_benchmarks(array_size: int, real: list[float] = [], imag: list[float] = [], hardcoded: bool = False) -> BenchmarkResults:
+    """
+    Computes Fast Fourier Transform (FFT) and Inverse FFT (IFFT) benchmarks using different implementations.
+
+    This function compares the performance of NumPy's FFT/IFFT with standard RISC-V and vectorized RISC-V
+    implementations. If hardcoded is False, it generates random complex values within the range [-1000, 1000]
+    for both real and imaginary components.
+
+    Parameters
+    ----------
+    array_size : int
+        Size of the array to perform FFT/IFFT operations on.
+    real : list[float], optional
+        Real components of the input array. If empty and hardcoded=False, 
+        random values will be generated.
+    imag : list[float], optional
+        Imaginary components of the input array. If empty and hardcoded=False, 
+        random values will be generated.
+    hardcoded : bool, optional
+        If True, uses the provided real and imag arrays.
+        If False, generates random arrays regardless of provided inputs.
+
+    Returns
+    -------
+    dict
+        A dictionary containing benchmark results with the following structure:
+        {
+            'size': int,              # Size of the input array
+            'input': ndarray[complex], # Complex input array
+            'npFFT': {                # NumPy FFT results
+                'result': ndarray[complex],  # FFT output
+                'cycles': int,               # CPU cycles used (-1 if not implemented)
+                'time': float                # Execution time in seconds
+            },
+            'npIFFT': { ... },        # NumPy IFFT results (same structure)
+            'nFFT': { ... },          # RISC-V FFT results (same structure)
+            'nIFFT': { ... },         # RISC-V IFFT results (same structure)
+            'vFFT': { ... },          # Vectorized RISC-V FFT results (same structure)
+            'vIFFT': { ... }          # Vectorized RISC-V IFFT results (same structure)
+        }
+
+    Notes
+    -----
+    - The function prints progress information during benchmark execution.
+    - All complex results are converted to 32-bit floating point precision.
+    - For vectorized results, only the first array_size elements are included.
+
+    Examples
+    --------
+    >>> results = compute_FFT_IFFT_with_benchmarks(64)
+    >>> print(f"NumPy FFT took {results['npFFT']['time']} seconds")
+    >>> print(f"Vectorized FFT took {results['vFFT']['time']} seconds")
+
+    >>> # Using custom input arrays
+    >>> real_data = [1.0, 2.0, 3.0, 4.0]
+    >>> imag_data = [0.0, 0.0, 0.0, 0.0]
+    >>> results = compute_FFT_IFFT_with_benchmarks(4, real_data, imag_data, True)
+    """
     if not hardcoded:
         import random
         import numpy as np
         real = [random.uniform(-1000, 1000) for _ in range(array_size)]
         imag = [random.uniform(-1000, 1000) for _ in range(array_size)]
-        
+
         # Combine into a complex array
-        complex_array = np.array([complex(r, i) for r, i in zip(real, imag)], dtype=np.complex64)
+        complex_array = np.array([complex(r, i)
+                                 for r, i in zip(real, imag)], dtype=np.complex64)
 
         # Extract real and imaginary parts as 32-bit floats
         real = complex_array.real.astype(np.float32)
@@ -543,10 +900,21 @@ def compute_FFT_IFFT_with_benchmarks(array_size, real=[], imag=[], hardcoded=Fal
     print(f"\n\nAll benchmarks done for {array_size}\n\n")
     return benchmark_results
 
-# Changes Veer vector size to number of bytes
 
+def changeVectorSize(size: int) -> None:
+    """
+    Updates the vector size in the Veer configuration file.
 
-def changeVectorSize(size):
+    Args:
+        size (int): The number of bytes to set for the vector size.
+
+    Modifies:
+        Updates the "bytes_per_vec" field in the 'whisper.json' configuration file
+        located in the VEER_FOLDER_PATH directory.
+
+    Returns:
+        None
+    """
     import json
     file_path = VEER_FOLDER_PATH+'/whisper.json'
 
@@ -561,21 +929,51 @@ def changeVectorSize(size):
     return
 
 
-def saveResults(results, filename):
+def saveResults(results:BenchmarkResults, filename:str) -> None:
+    """
+    Saves the given results dictionary to a pickle file.
+
+    Args:
+        results (BenchmarkResults): The data to be saved.
+        filename (str): The base filename (without extension) for the pickle file.
+
+    Saves:
+        A file named '<filename>.pickle' containing the serialized results.
+    """
     with open(filename+'.pickle', 'wb') as f:
         pickle.dump(results, f)
 
 
-def loadResults(filename):
+def loadResults(filename:str)->BenchmarkResults:
+    """
+    Loads results from a pickle file.
+
+    Args:
+        filename (str): The base filename (without extension) for the pickle file.
+
+    Returns:
+        dict: The deserialized data stored in the pickle file.
+    """
     with open(filename+'.pickle', 'rb') as f:
         return pickle.load(f)
 
-# RUNS FFT/IFFT on arrays of different sizes on dirrent real/imag array (pass array counraninf array) (if hardcodedgiven)).
-# TODO custom array values are not implemented yet
-# Returns an array conatinign output of each test
+def benchmark_different_sizes(sizes:list[int], real:list[float]=[], imag:list[float]=[], hardcoded:bool=False)->list[BenchmarkResults]:
+    """
+    Runs FFT/IFFT benchmarks on arrays of different sizes.
 
-
-def benchmark_different_sizes(sizes, real=[], imag=[], hardcoded=False):
+    This function computes FFT and IFFT for the given list of sizes.
+    If `hardcoded` is True, predefined input values will be used; otherwise, 
+    the function will use the provided `real` and `imag` arrays.
+    
+    Args:
+        sizes (list[int]): List of array sizes to benchmark.
+        real (list[float], optional): Real part of input arrays. Defaults to an empty list.
+        imag (list[float], optional): Imaginary part of input arrays. Defaults to an empty list.
+        hardcoded (bool, optional): Whether to use predefined input values. Defaults to False.
+    
+    Returns:
+        list[BenchmarkResults]: A list containing benchmark results for each tested size.
+    """
     results = []
     for size in sizes:
         result = compute_FFT_IFFT_with_benchmarks(size, real, imag, hardcoded)
@@ -583,16 +981,24 @@ def benchmark_different_sizes(sizes, real=[], imag=[], hardcoded=False):
 
     return results
 
-# Perform FFT/IFFT tests on given sizes, check for existing results,
-#    and save new results to the CSV file.
-#    :param sizes: List of sizes to test.
-#    :param filename: Name of the CSV file to save results to.
-#    :param real: Real part of the input array.
-#    :param imag: Imaginary part of the input array.
-#    :param hardcoded: Whether to use hardcoded values or random values.
+def performTestsAndSaveResults(sizes:list[int], filename:str=f"{RESULT_FOLDER_PATH}/fft_ifft_results", real:list[float]=[], imag:list[float]=[], hardcoded:bool=False)->list[dict]:
+    """
+    Runs FFT/IFFT benchmarks, checks for existing results, and saves new results.
 
+    This function first loads previously saved results (if available) and determines
+    which sizes still need testing. It then benchmarks those sizes, updates the results, 
+    and saves them to a file.
 
-def performTestsAndSaveResults(sizes, filename=f"{RESULT_FOLDER_PATH}/fft_ifft_results", real=[], imag=[], hardcoded=False):
+    Args:
+        sizes (list[int]): List of FFT/IFFT sizes to test.
+        filename (str, optional): Path to the file where results are saved. Defaults to 'fft_ifft_results'.
+        real (list[float], optional): Real part of the input array. Defaults to an empty list.
+        imag (list[float], optional): Imaginary part of the input array. Defaults to an empty list.
+        hardcoded (bool, optional): Whether to use hardcoded values instead of random inputs. Defaults to False.
+
+    Returns:
+        list[dict]: A list of dictionaries containing FFT/IFFT benchmark results.
+    """
     import os
     # Load previous results if the CSV file exists
     existing_results = []
@@ -624,7 +1030,20 @@ def performTestsAndSaveResults(sizes, filename=f"{RESULT_FOLDER_PATH}/fft_ifft_r
     return all_results
 
 
-def flatten_results(results):
+def flatten_results(results:list[BenchmarkResults]):
+    """
+    Converts a list of benchmark results into a structured dictionary format.
+
+    This function extracts relevant performance metrics from each result and 
+    organizes them into a dictionary for easier analysis and storage.
+
+    Args:
+        results (list[BenchmarkResults]): List of benchmark results to flatten.
+
+    Returns:
+        dict: A dictionary containing extracted FFT/IFFT benchmark data, with keys representing 
+              different metrics such as size, input values, FFT results, execution cycles, and execution times.
+    """
     import numpy as np
     data = {
         'size': [],
@@ -683,6 +1102,5 @@ def flatten_results(results):
         data['vIFFT_result'].append((result['vIFFT']['result']))
         data['vIFFT_cycles'].append(result['vIFFT']['cycles'])
         data['vIFFT_time'].append(result['vIFFT']['time'])
-
 
     return (data)
