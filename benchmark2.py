@@ -11,7 +11,7 @@ from scipy import stats
 
 
 # Define the sizes for testing
-sizes = [2 ** i for i in range(1, 3)]  
+sizes = [2 ** i for i in range(1, 7)]  
 
 # Vector Register Size in Bytes
 vector_size = [16,32, 64, 128] # Based on available vector procsessor sizes
@@ -71,8 +71,8 @@ def run_comprehensive_tests(sizes, signal_types, num_iterations):
 def run_single_test(size, input_signal, signal_type, iteration):
     # Run the existing test function with our input
     import os
-    os.makedirs(f"./.tempTest1/{size}/{iteration}/{signal_type}", exist_ok=True)
-    result = performTestsAndSaveResults([size], f"./.tempTest1/{size}/{iteration}/{signal_type}",  real=input_signal.real, imag=input_signal.imag)[0]
+    os.makedirs(f"./.tempTest/{size}/{iteration}/{signal_type}", exist_ok=True)
+    result = performTestsAndSaveResults([size], f"./.tempTest/{size}/{iteration}/{signal_type}",  real=input_signal.real, imag=input_signal.imag)[0]
     # Add additional metadata
     result['signal_type'] = signal_type
     result['iteration'] = iteration
@@ -110,6 +110,53 @@ results = flatten_results_custom(results)
 
 # Create a pandas DataFrame from the results
 df = pd.DataFrame(results)
+#TODO show how the percentage of instructions  scaled etcd
+def categorize_and_analyze(vec_ins, non_vec_ins):
+    categories = {
+        "Vector Load": {"vle", "vloxei"},
+        "Vector Store": {"vse", "vsoxei"},
+        "Vector Floating Point": {"vf", "vfm", "vfn", "vfc", "vfadd", "vfsub", "vfmul", "vfmacc", "vfsgnjn", "vfdiv", "vfcvt"},
+        "Vector Integer Arithmetic": {"vadd", "vsub", "vmul", "vdiv", "vrem"},
+        "Vector Bitwise": {"vand", "vor", "vxor", "vsll", "vsrl", "vsra"},
+        "Vector Other": set(),
+        "Non-Vector Load": {"lw", "flw", "c.lwsp", "c.flwsp"},
+        "Non-Vector Store": {"sw", "sb", "c.swsp"},
+        "Non-Vector Floating Point": {"fcvt", "fdiv", "fcvt.s.w"},
+        "Non-Vector Integer Arithmetic": {"add", "sub", "mul", "slli", "srai", "addi", "clz"},
+        "Non-Vector Control": {"bge", "c.j", "c.jal", "c.jr", "c.add"},
+        "Non-Vector Other": {"auipc", "lui", "c.li", "c.addi", "c.slli", "c.srai"}
+    }
+    
+    category_counts = {key: 0 for key in categories}
+    
+    for inst, count in vec_ins.items():
+        categorized = False
+        for category, prefixes in categories.items():
+            if any(inst.startswith(prefix) for prefix in prefixes):
+                category_counts[category] += count
+                categorized = True
+                break
+        if not categorized:
+            category_counts["Vector Other"] += count
+    
+    for inst, count in non_vec_ins.items():
+        categorized = False
+        for category, prefixes in categories.items():
+            if any(inst.startswith(prefix) for prefix in prefixes):
+                category_counts[category] += count
+                categorized = True
+                break
+        if not categorized:
+            category_counts["Non-Vector Other"] += count
+    
+    total = sum(category_counts.values())
+    category_percentages = {key: (value / total) * 100 for key, value in category_counts.items()}
+    
+    sorted_counts = dict(sorted(category_counts.items(), key=lambda item: item[1], reverse=True))
+    sorted_percentages = dict(sorted(category_percentages.items(), key=lambda item: item[1], reverse=True))
+    
+    return sorted_counts, sorted_percentages
+
 
 # Create a timestamp for naming the results PDF
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
