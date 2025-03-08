@@ -1,3 +1,5 @@
+from numpy.typing import NDArray
+from typing import TypedDict, Dict
 import pickle
 import numpy as np
 VEER_TEMP_FOLDER_PATH = './veer/tempFiles'
@@ -171,7 +173,7 @@ def find_log_pattern(lines: list[str]) -> bool:
     return all(value in found_values for value in required_values)
 
 
-def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = True, save_full_log: bool = False) -> tuple[int, float]:
+def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = True, save_full_log: bool = False) -> tuple[int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compile and run an assembly file on the Veer RISC-V simulator, capturing execution logs and performance metrics.
 
@@ -236,6 +238,10 @@ def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = Tru
     # Regular expression to find "Retired X instructions"
     instruction_regex = r"Retired\s+(\d+)\s+instructions"
 
+    # To count the amount of time each instruction was executed
+    vector_instructions = {}
+    non_vector_instructions = {}
+
     # Execute the commands one by one
     start_time = -1
     end_time = -1
@@ -263,6 +269,17 @@ def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = Tru
                         break  # Exit if the process is done
 
                     if output:  # Process only if there's output
+                        # Save instruction count
+                        parts = output.split()
+                        if len(parts) >= 8:
+                            # Extracting the 8th column as the instruction
+                            instr = parts[7]
+                            if instr.startswith('v'):
+                                vector_instructions[instr] = vector_instructions.get(
+                                    instr, 0) + 1
+                            else:
+                                non_vector_instructions[instr] = non_vector_instructions.get(
+                                    instr, 0) + 1
                         # Add the output to the buffer
                         lines_buffer.append(output)
                         if len(lines_buffer) > buffer_size:
@@ -311,7 +328,7 @@ def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = Tru
 
     timetaken = end_time - start_time
 
-    return int(retired_instructions), timetaken
+    return int(retired_instructions), timetaken, (vector_instructions, non_vector_instructions)
 
 
 def hex_to_float(hex_array: list[str]) -> list[float]:
@@ -510,7 +527,7 @@ def process_file(file_name: str, delete_log_files: bool = False) -> np.ndarray:
         return real, imag
 
 
-def run(type: str, real: list[float], imag: list[float], array_size: int, delete_temp_files: bool = True, delete_log_files: bool = False) -> tuple[np.ndarray, int, float]:
+def run(type: str, real: list[float], imag: list[float], array_size: int, delete_temp_files: bool = True, delete_log_files: bool = False, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Execute a specified FFT/IFFT operation using RISC-V assembly simulation on Veer.
 
@@ -561,14 +578,14 @@ def run(type: str, real: list[float], imag: list[float], array_size: int, delete
         print("ERROR")
         exit(-1)
 
-    cycles, time = simulate_on_veer(assemblyFile, logFile, delete_temp_files)
+    cycles, time, ins_count = simulate_on_veer(
+        assemblyFile, logFile, delete_temp_files, save_full_log)
     result = process_file(logFile, delete_log_files)
 
-    return (result, cycles, time)
+    return (result, cycles, time, ins_count)
 
 
-
-def npFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, int, float]:
+def npFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the Fast Fourier Transform (FFT) using NumPy.
 
@@ -590,16 +607,17 @@ def npFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, int
         - A float for the execution time in seconds.
     """
     import time
-    complex_numbers = np.array(real, dtype=np.float32) + 1j * np.array(imag, dtype=np.float32)
+    complex_numbers = np.array(real, dtype=np.float32) + \
+        1j * np.array(imag, dtype=np.float32)
     start_time = time.time()
     fft = np.fft.fft(complex_numbers).astype(np.complex64)
     end_time = time.time()
     elapsed_time = end_time - start_time
     npFFTcycles = -1  # Not implemented
-    return fft, npFFTcycles, elapsed_time
+    return fft, npFFTcycles, elapsed_time, ({}, {})
 
 
-def npIFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, int, float]:
+def npIFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the Inverse Fast Fourier Transform (IFFT) using NumPy.
 
@@ -627,10 +645,10 @@ def npIFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, in
     end_time = time.time()
     elapsed_time = end_time - start_time
     npIFFTcycles = -1  # Not implemented
-    return ifft, npIFFTcycles, elapsed_time
+    return ifft, npIFFTcycles, elapsed_time, ({}, {})
 
 
-def nFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+def nFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the FFT using RISC-V assembly code simulation on Veer.
 
@@ -656,7 +674,7 @@ def nFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: boo
     return run('FFT', real, imag, array_size, deleteFiles, False)
 
 
-def nIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+def nIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the IFFT using RISC-V assembly code simulation on Veer.
 
@@ -682,7 +700,7 @@ def nIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bo
     return run('IFFT', real, imag, array_size, deleteFiles, False)
 
 
-def vFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+def vFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the FFT using vectorized RISC-V assembly code simulation on Veer.
 
@@ -705,10 +723,10 @@ def vFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: boo
         - An integer for the number of cycles (from simulation).
         - A float for the execution time in seconds.
     """
-    return run('vFFT', real, imag, array_size, deleteFiles, False)
+    return run('vFFT', real, imag, array_size, deleteFiles, False, save_full_log=save_full_log)
 
 
-def vIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float]:
+def vIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the IFFT using vectorized RISC-V assembly code simulation on Veer.
 
@@ -731,16 +749,16 @@ def vIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bo
         - An integer for the number of cycles (from simulation).
         - A float for the execution time in seconds.
     """
-    return run('vIFFT', real, imag, array_size, deleteFiles, False)
+    return run('vIFFT', real, imag, array_size, deleteFiles, False, save_full_log=save_full_log)
 
-
-from typing import TypedDict
-from numpy.typing import NDArray
 
 class FFTResult(TypedDict):
     result: NDArray[np.complex64]
     cycles: int
     time: float
+    VectorIns: dict[str, int]
+    nonVectorIns: dict[str, int]
+
 
 class BenchmarkResults(TypedDict):
     size: int
@@ -752,7 +770,7 @@ class BenchmarkResults(TypedDict):
     vFFT: FFTResult
     vIFFT: FFTResult
 
-    
+
 def compute_FFT_IFFT_with_benchmarks(array_size: int, real: list[float] = [], imag: list[float] = [], hardcoded: bool = False) -> BenchmarkResults:
     """
     Computes Fast Fourier Transform (FFT) and Inverse FFT (IFFT) benchmarks using different implementations.
@@ -786,6 +804,8 @@ def compute_FFT_IFFT_with_benchmarks(array_size: int, real: list[float] = [], im
                 'result': ndarray[complex],  # FFT output
                 'cycles': int,               # CPU cycles used (-1 if not implemented)
                 'time': float                # Execution time in seconds
+                'vectorIns' : dict[str, int] # list of vector instructions executed and their count
+                'nonVectorIns' : dict[str, int] # list of non-vector instructions executed and their count
             },
             'npIFFT': { ... },        # NumPy IFFT results (same structure)
             'nFFT': { ... },          # RISC-V FFT results (same structure)
@@ -831,29 +851,30 @@ def compute_FFT_IFFT_with_benchmarks(array_size: int, real: list[float] = [], im
     benchmark_results = {}
 
     print(f"Performing npFFT for array of size {array_size}")
-    npFFTresult, npFFTcycles, npFFTtime = npFFT(real, imag, array_size)
+    npFFTresult, npFFTcycles, npFFTtime, npFFTIns = npFFT(
+        real, imag, array_size)
     print(f"Done. Took {npFFTtime} milliseconds")
 
     print(f"Performing npIFFT for array of size {array_size}")
-    npIFFTresult, npIFFTcycles, npIFFTtime = npIFFT(
+    npIFFTresult, npIFFTcycles, npIFFTtime, npIFFTIns = npIFFT(
         npFFTresult.real, npFFTresult.imag, array_size)
     print(f"Done. Took {npIFFTtime} milliseconds")
 
     print(f"Performing nFFT for array of size {array_size}")
-    nFFTresult, nFFTcycles, nFFTtime = nFFT(real, imag, array_size)
+    nFFTresult, nFFTcycles, nFFTtime, nFFTIns = nFFT(real, imag, array_size)
     print(f"Done. Took {nFFTtime} milliseconds")
 
     print(f"Performing nIFFT for array of size {array_size}")
-    nIFFTresult, nIFFTcycles, nIFFTtime = nIFFT(
+    nIFFTresult, nIFFTcycles, nIFFTtime, nIFFTIns = nIFFT(
         nFFTresult.real, nFFTresult.imag, array_size)
     print(f"Done. Took {nIFFTtime} milliseconds")
 
     print(f"Performing vFFT for array of size {array_size}")
-    vFFTresult, vFFTcycles, vFFTtime = vFFT(real, imag, array_size)
+    vFFTresult, vFFTcycles, vFFTtime, vFFTIns = vFFT(real, imag, array_size)
     print(f"Done. Took {vFFTtime} milliseconds")
 
     print(f"Performing vIFFT for array of size {array_size}")
-    vIFFTresult, vIFFTcycles, vIFFTtime = vIFFT(
+    vIFFTresult, vIFFTcycles, vIFFTtime, vIFFTIns = vIFFT(
         vFFTresult.real, vFFTresult.imag, array_size)
     print(f"Done. Took {vIFFTtime} milliseconds")
 
@@ -864,37 +885,49 @@ def compute_FFT_IFFT_with_benchmarks(array_size: int, real: list[float] = [], im
     benchmark_results['npFFT'] = {
         'result': npFFTresult.astype(np.complex64),
         'cycles': npFFTcycles,
-        'time': npFFTtime
+        'time': npFFTtime,
+        'vectorIns': npFFTIns[0],
+        'nonVectorIns': npFFTIns[1],
     }
 
     benchmark_results['npIFFT'] = {
         'result': npIFFTresult.astype(np.complex64),
         'cycles': npIFFTcycles,
-        'time': npIFFTtime
+        'time': npIFFTtime,
+        'vectorIns': npFFTIns[0],
+        'nonVectorIns': npFFTIns[1],
     }
 
     benchmark_results['nFFT'] = {
         'result': nFFTresult.astype(np.complex64),
         'cycles': nFFTcycles,
-        'time': nFFTtime
+        'time': nFFTtime,
+        'vectorIns': nFFTIns[0],
+        'nonVectorIns': nFFTIns[1],
     }
 
     benchmark_results['nIFFT'] = {
         'result': nIFFTresult.astype(np.complex64),
         'cycles': nIFFTcycles,
-        'time': nIFFTtime
+        'time': nIFFTtime,
+        'vectorIns': nIFFTIns[0],
+        'nonVectorIns': nIFFTIns[1],
     }
 
     benchmark_results['vFFT'] = {
         'result': vFFTresult[:array_size].astype(np.complex64),
         'cycles': vFFTcycles,
-        'time': vFFTtime
+        'time': vFFTtime,
+        'vectorIns': vFFTIns[0],
+        'nonVectorIns': vFFTIns[1],
     }
 
     benchmark_results['vIFFT'] = {
         'result': vIFFTresult[:array_size].astype(np.complex64),
         'cycles': vIFFTcycles,
-        'time': vIFFTtime
+        'time': vIFFTtime,
+        'vectorIns': vIFFTIns[0],
+        'nonVectorIns': vIFFTIns[1],
     }
 
     print(f"\n\nAll benchmarks done for {array_size}\n\n")
@@ -929,7 +962,7 @@ def changeVectorSize(size: int) -> None:
     return
 
 
-def saveResults(results:BenchmarkResults, filename:str) -> None:
+def saveResults(results: BenchmarkResults, filename: str) -> None:
     """
     Saves the given results dictionary to a pickle file.
 
@@ -944,7 +977,7 @@ def saveResults(results:BenchmarkResults, filename:str) -> None:
         pickle.dump(results, f)
 
 
-def loadResults(filename:str)->BenchmarkResults:
+def loadResults(filename: str) -> BenchmarkResults:
     """
     Loads results from a pickle file.
 
@@ -957,20 +990,21 @@ def loadResults(filename:str)->BenchmarkResults:
     with open(filename+'.pickle', 'rb') as f:
         return pickle.load(f)
 
-def benchmark_different_sizes(sizes:list[int], real:list[float]=[], imag:list[float]=[], hardcoded:bool=False)->list[BenchmarkResults]:
+
+def benchmark_different_sizes(sizes: list[int], real: list[float] = [], imag: list[float] = [], hardcoded: bool = False) -> list[BenchmarkResults]:
     """
     Runs FFT/IFFT benchmarks on arrays of different sizes.
 
     This function computes FFT and IFFT for the given list of sizes.
     If `hardcoded` is True, predefined input values will be used; otherwise, 
     the function will use the provided `real` and `imag` arrays.
-    
+
     Args:
         sizes (list[int]): List of array sizes to benchmark.
         real (list[float], optional): Real part of input arrays. Defaults to an empty list.
         imag (list[float], optional): Imaginary part of input arrays. Defaults to an empty list.
         hardcoded (bool, optional): Whether to use predefined input values. Defaults to False.
-    
+
     Returns:
         list[BenchmarkResults]: A list containing benchmark results for each tested size.
     """
@@ -981,7 +1015,8 @@ def benchmark_different_sizes(sizes:list[int], real:list[float]=[], imag:list[fl
 
     return results
 
-def performTestsAndSaveResults(sizes:list[int], filename:str=f"{RESULT_FOLDER_PATH}/fft_ifft_results", real:list[float]=[], imag:list[float]=[], hardcoded:bool=False)->list[dict]:
+
+def performTestsAndSaveResults(sizes: list[int], filename: str = f"{RESULT_FOLDER_PATH}/fft_ifft_results", real: list[float] = [], imag: list[float] = [], hardcoded: bool = False) -> list[BenchmarkResults]:
     """
     Runs FFT/IFFT benchmarks, checks for existing results, and saves new results.
 
@@ -1030,7 +1065,7 @@ def performTestsAndSaveResults(sizes:list[int], filename:str=f"{RESULT_FOLDER_PA
     return all_results
 
 
-def flatten_results(results:list[BenchmarkResults]):
+def flatten_results(results: list[BenchmarkResults]):
     """
     Converts a list of benchmark results into a structured dictionary format.
 
