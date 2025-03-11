@@ -1,3 +1,4 @@
+from collections import defaultdict
 from src.python.functions import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,10 +12,10 @@ from scipy import stats
 
 
 # Define the sizes for testing
-sizes = [2 ** i for i in range(1, 7)]  
+sizes = [2 ** i for i in range(1, 14)]
 
 # Vector Register Size in Bytes
-vector_size = [16,32, 64, 128] # Based on available vector procsessor sizes
+vector_sizes = [16, 32, 64, 128]  # Based on available vector procsessor sizes
 
 # Run multiple iterations for statistical significance
 num_iterations = 5
@@ -23,6 +24,8 @@ num_iterations = 5
 signal_types = ['random', 'sine', 'impulse', 'step', 'chirp']
 
 # Function to generate different test signals
+
+
 def generate_test_signal(size, signal_type):
     if signal_type == 'random':
         # Complex random signal
@@ -52,45 +55,56 @@ def generate_test_signal(size, signal_type):
         return np.random.random(size) + 1j * np.random.random(size)
 
 # Function to run tests for all signal types and collect results
+
+
 def run_comprehensive_tests(sizes, signal_types, num_iterations):
     all_results = []
-    
-    for size in sizes:
-        for signal_type in signal_types:
-            for iteration in range(num_iterations):
-                # Generate input signal based on type
-                input_signal = generate_test_signal(size, signal_type)
-                
-                # Run tests
-                result = run_single_test(size, input_signal, signal_type, iteration)
-                all_results.append(result)
-                
+
+    for vector_size in vector_sizes:
+        changeVectorSize(vector_size)
+        for size in sizes:
+            for signal_type in signal_types:
+                for iteration in range(num_iterations):
+                    # Generate input signal based on type
+                    input_signal = generate_test_signal(size, signal_type)
+
+                    # Run tests
+                    result = run_single_test(
+                        size, input_signal, signal_type, iteration, vector_size)
+                    all_results.append(result)
+
     return all_results
 
 # Function to run a single test and collect results
-def run_single_test(size, input_signal, signal_type, iteration):
+
+
+def run_single_test(size, input_signal, signal_type, iteration, vector_size):
     # Run the existing test function with our input
     import os
-    os.makedirs(f"./.tempTest/{size}/{iteration}/{signal_type}", exist_ok=True)
-    result = performTestsAndSaveResults([size], f"./.tempTest/{size}/{iteration}/{signal_type}",  real=input_signal.real, imag=input_signal.imag)[0]
+    os.makedirs(
+        f"./.tempTest/{size}/{iteration}/{signal_type}/{vector_size}", exist_ok=True)
+    result = performTestsAndSaveResults(
+        [size], f"./.tempTest/{size}/{iteration}/{signal_type}/{vector_size}",  real=input_signal.real, imag=input_signal.imag)[0]
     # Add additional metadata
     result['signal_type'] = signal_type
     result['iteration'] = iteration
-    
+    result['vector_size'] = vector_size
+
     return result
 
 
 def flatten_results_custom(results):
     flat_list = []
-    
+
     for entry in results:
         flat_entry = {
             'size': entry['size'],
             'signal_type': entry['signal_type'],
             'iteration': entry['iteration'],
-            'input':entry['input'],
+            'vector_size': entry['vector_size'],
+            'input': entry['input'],
         }
-        
+
         # Extract FFT results (flattening cycles and time)
         for fft_type in ['npFFT', 'npIFFT', 'nFFT', 'nIFFT', 'vFFT', 'vIFFT']:
             if fft_type in entry:
@@ -99,10 +113,11 @@ def flatten_results_custom(results):
                 flat_entry[f'{fft_type}_time'] = entry[fft_type]['time']
                 flat_entry[f'{fft_type}_vectorIns'] = entry[fft_type]['vectorIns']
                 flat_entry[f'{fft_type}_nonVectorIns'] = entry[fft_type]['nonVectorIns']
-        
+
         flat_list.append(flat_entry)
-    
+
     return flat_list
+
 
 # Run the comprehensive tests
 results = run_comprehensive_tests(sizes, signal_types, num_iterations)
@@ -110,25 +125,51 @@ results = flatten_results_custom(results)
 
 # Create a pandas DataFrame from the results
 df = pd.DataFrame(results)
-#TODO show how the percentage of instructions  scaled etcd
-def categorize_and_analyze(vec_ins, non_vec_ins):
-    categories = {
-        "Vector Load": {"vle", "vloxei"},
-        "Vector Store": {"vse", "vsoxei"},
-        "Vector Floating Point": {"vf", "vfm", "vfn", "vfc", "vfadd", "vfsub", "vfmul", "vfmacc", "vfsgnjn", "vfdiv", "vfcvt"},
-        "Vector Integer Arithmetic": {"vadd", "vsub", "vmul", "vdiv", "vrem"},
-        "Vector Bitwise": {"vand", "vor", "vxor", "vsll", "vsrl", "vsra"},
-        "Vector Other": set(),
-        "Non-Vector Load": {"lw", "flw", "c.lwsp", "c.flwsp"},
-        "Non-Vector Store": {"sw", "sb", "c.swsp"},
-        "Non-Vector Floating Point": {"fcvt", "fdiv", "fcvt.s.w"},
-        "Non-Vector Integer Arithmetic": {"add", "sub", "mul", "slli", "srai", "addi", "clz"},
-        "Non-Vector Control": {"bge", "c.j", "c.jal", "c.jr", "c.add"},
-        "Non-Vector Other": {"auipc", "lui", "c.li", "c.addi", "c.slli", "c.srai"}
-    }
-    
+# TODO show how the percentage of instructions  scaled etcd
+
+categories = {
+    "Vector Load/Store Normal": {"vle", "vse"},
+    "Vector Load/Store Indexed": {"vloxei", "vsoxei"},
+    "Vector Floating Point Arithmetic": {
+        "vfadd", "vfsub", "vfmul", "vfmacc", "vfsgnjn", "vfdiv", "vfcvt", "vfncvt",
+        "vfmv.v.f", "vfnmsac.vv", "vfmadd.vv"
+    },
+    "Vector Floating Compare": {"vmfeq", "vmfne", "vmflt", "vmfle", "vmfgt", "vmfge"},
+    "Vector Integer Arithmetic": {"vadd", "vsub", "vmul", "vdiv", "vrem", "vsll", "vsrl", "vsra"},
+    "Vector Integer Compare": {"vmseq.vx"},
+    "Vector Bitwise": {"vand", "vor", "vxor"},
+    "Vector Other": {"vid.v", "vmv.v.v", "vmerge.vvm"},
+    "Non-Vector Load": {"lw", "flw", "c.lwsp", "c.flwsp"},
+    "Non-Vector Store": {"sw", "sb", "c.swsp"},
+    "Non-Vector Floating Point": {"fcvt", "fdiv", "fcvt.s.w"},
+    "Non-Vector Integer Arithmetic": {"add", "sub", "mul", "slli", "srai", "addi"},
+    "Non-Vector Bitwise": {"clz"},
+    "Non-Vector Control": {"bge", "beq", "bne", "blt", "ble", "c.j", "c.jal", "c.jr", "c.add"},
+    "Non-Vector Other": {"auipc", "lui", "c.li", "c.addi", "c.slli", "c.srai"}
+}
+
+
+# Define cycle counts per instruction type (example values)
+instruction_cycles = {
+    "Vector Load/Store Normal": 4,
+    "Vector Store Indexed": 6,
+    "Vector Floating Point": 4,
+    "Vector Integer Arithmetic": 2,
+    "Vector Bitwise": 2,
+    "Vector Other": 3,
+    "Non-Vector Load": 3,
+    "Non-Vector Store": 3,
+    "Non-Vector Floating Point": 4,
+    "Non-Vector Integer Arithmetic": 1,
+    "Non-Vector Control": 2,
+    "Non-Vector Other": 1
+}
+
+
+def categorize_and_analyze(vec_ins, non_vec_ins, categories):
+
     category_counts = {key: 0 for key in categories}
-    
+
     for inst, count in vec_ins.items():
         categorized = False
         for category, prefixes in categories.items():
@@ -137,8 +178,9 @@ def categorize_and_analyze(vec_ins, non_vec_ins):
                 categorized = True
                 break
         if not categorized:
+            print(inst)
             category_counts["Vector Other"] += count
-    
+
     for inst, count in non_vec_ins.items():
         categorized = False
         for category, prefixes in categories.items():
@@ -148,14 +190,59 @@ def categorize_and_analyze(vec_ins, non_vec_ins):
                 break
         if not categorized:
             category_counts["Non-Vector Other"] += count
-    
+
     total = sum(category_counts.values())
-    category_percentages = {key: (value / total) * 100 for key, value in category_counts.items()}
-    
-    sorted_counts = dict(sorted(category_counts.items(), key=lambda item: item[1], reverse=True))
-    sorted_percentages = dict(sorted(category_percentages.items(), key=lambda item: item[1], reverse=True))
-    
+    category_percentages = {
+        key: (value / total) * 100 for key, value in category_counts.items()}
+
+    sorted_counts = dict(sorted(category_counts.items(),
+                         key=lambda item: item[1], reverse=True))
+    sorted_percentages = dict(
+        sorted(category_percentages.items(), key=lambda item: item[1], reverse=True))
+
     return sorted_counts, sorted_percentages
+
+    # Group by size and signal_type, and calculate the mean of the cycles
+grouped_data = df.groupby(['size', 'signal_type']).agg(
+        {'nFFT_cycles': 'mean', 'vFFT_cycles': 'mean'}).reset_index()
+print(grouped_data)
+print(df.iloc[250])
+sorted_counts, sorted_percentages = categorize_and_analyze(
+    df.iloc[250]['vIFFT_vectorIns'], df.iloc[250]['vIFFT_nonVectorIns'], categories)
+print(sorted_counts, sorted_percentages)
+exit()
+
+
+def plot_data(df):
+    # Plot vector vs. non-vector time
+    plt.figure(figsize=(10, 5))
+    sns.lineplot(data=df, x='size', y='vector_time', label='Vector Time')
+    sns.lineplot(data=df, x='size', y='non_vector_time',
+                 label='Non-Vector Time')
+    plt.xlabel("Size")
+    plt.ylabel("Estimated Execution Time")
+    plt.title("Vector vs. Non-Vector Execution Time by Size")
+    plt.legend()
+    plt.show()
+
+    # Stacked bar chart for instruction categories
+    df_melted = df.melt(id_vars=['size', 'fft_type'],
+                        var_name='Category', value_name='Count')
+    plt.figure(figsize=(12, 6))
+    sns.barplot(data=df_melted, x='size', y='Count', hue='Category')
+    plt.xlabel("Size")
+    plt.ylabel("Instruction Count")
+    plt.title("Breakdown of Instruction Categories by Size")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.show()
+
+
+# Example usage
+# Assuming 'results' is available
+df = pd.DataFrame(flatten_results_custom(results))
+processed_df = process_dataframe(df)
+plot_data(processed_df)
+exit()
 
 
 # Create a timestamp for naming the results PDF
@@ -170,37 +257,44 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     # Create a summary page with test parameters
     plt.figure(figsize=fig_size)
     plt.axis('off')
-    plt.text(0.5, 0.9, "FFT/IFFT Analysis Report", ha='center', fontsize=20, weight='bold')
-    plt.text(0.5, 0.8, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ha='center')
-    plt.text(0.5, 0.7, f"Number of input sizes tested: {len(sizes)}", ha='center')
-    plt.text(0.5, 0.65, f"Size range: {min(sizes)} to {max(sizes)}", ha='center')
-    plt.text(0.5, 0.6, f"Signal types tested: {', '.join(signal_types)}", ha='center')
+    plt.text(0.5, 0.9, "FFT/IFFT Analysis Report",
+             ha='center', fontsize=20, weight='bold')
+    plt.text(
+        0.5, 0.8, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ha='center')
+    plt.text(
+        0.5, 0.7, f"Number of input sizes tested: {len(sizes)}", ha='center')
+    plt.text(
+        0.5, 0.65, f"Size range: {min(sizes)} to {max(sizes)}", ha='center')
+    plt.text(
+        0.5, 0.6, f"Signal types tested: {', '.join(signal_types)}", ha='center')
     plt.text(0.5, 0.55, f"Iterations per test: {num_iterations}", ha='center')
     plt.text(0.5, 0.45, "This report analyzes performance and accuracy differences between:", ha='center')
     plt.text(0.5, 0.4, "- numpy FFT (npFFT) - Reference implementation", ha='center')
     plt.text(0.5, 0.35, "- naive FFT (nFFT) - Recursive implementation", ha='center')
-    plt.text(0.5, 0.3, "- vectorized FFT (vFFT) - Optimized implementation", ha='center')
+    plt.text(
+        0.5, 0.3, "- vectorized FFT (vFFT) - Optimized implementation", ha='center')
     plt.tight_layout()
     pdf.savefig()
     plt.close()
 
     # ===== PERFORMANCE ANALYSIS =====
-    
+
     # 1. Instruction Count Comparison by Size (Log Scale)
     plt.figure(figsize=fig_size)
     # Group by size and signal_type, and calculate the mean of the cycles
-    grouped_data = df.groupby(['size', 'signal_type']).agg({'nFFT_cycles': 'mean', 'vFFT_cycles': 'mean'}).reset_index()
-    
+    grouped_data = df.groupby(['size', 'signal_type']).agg(
+        {'nFFT_cycles': 'mean', 'vFFT_cycles': 'mean'}).reset_index()
+
     # Plot for each signal type with distinct markers and colors
     for i, signal_type in enumerate(signal_types):
         signal_data = grouped_data[grouped_data['signal_type'] == signal_type]
-        plt.plot(signal_data['size'], signal_data['nFFT_cycles'], 
-                 marker='o', linestyle='-', label=f'nFFT {signal_type}', 
+        plt.plot(signal_data['size'], signal_data['nFFT_cycles'],
+                 marker='o', linestyle='-', label=f'nFFT {signal_type}',
                  color=plt.cm.tab10(i), alpha=0.7)
-        plt.plot(signal_data['size'], signal_data['vFFT_cycles'], 
-                 marker='x', linestyle='--', label=f'vFFT {signal_type}', 
+        plt.plot(signal_data['size'], signal_data['vFFT_cycles'],
+                 marker='x', linestyle='--', label=f'vFFT {signal_type}',
                  color=plt.cm.tab10(i), alpha=1.0)
-    
+
     plt.ylabel('Instruction Count')
     plt.xlabel('Input Size')
     plt.xscale('log')
@@ -215,25 +309,26 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     # 2. Performance Metrics Dashboard
     # Create aggregated data by size (averaging across signal types and iterations)
     size_perf = df.groupby('size').agg({
-        'nFFT_time': 'mean', 
+        'nFFT_time': 'mean',
         'vFFT_time': 'mean',
-        'nFFT_cycles': 'mean', 
+        'nFFT_cycles': 'mean',
         'vFFT_cycles': 'mean'
     }).reset_index()
-    
+
     # Calculate speedups
     size_perf['time_speedup'] = size_perf['nFFT_time'] / size_perf['vFFT_time']
-    size_perf['cycle_speedup'] = size_perf['nFFT_cycles'] / size_perf['vFFT_cycles']
-    
+    size_perf['cycle_speedup'] = size_perf['nFFT_cycles'] / \
+        size_perf['vFFT_cycles']
+
     # Create a 2x2 subplot
     fig, axs = plt.subplots(2, 2, figsize=fig_size)
     fig.suptitle('CPU Cycles and Runtime Comparison', fontsize=14)
 
     # Time Comparison
-    axs[0, 0].plot(size_perf['size'], size_perf['nFFT_time'], 
-                 marker='o', label='nFFT Time', color='blue')
-    axs[0, 0].plot(size_perf['size'], size_perf['vFFT_time'], 
-                 marker='x', label='vFFT Time', color='red')
+    axs[0, 0].plot(size_perf['size'], size_perf['nFFT_time'],
+                   marker='o', label='nFFT Time', color='blue')
+    axs[0, 0].plot(size_perf['size'], size_perf['vFFT_time'],
+                   marker='x', label='vFFT Time', color='red')
     axs[0, 0].set_xscale('log')
     axs[0, 0].set_yscale('log')
     axs[0, 0].set_xlabel('Input Size (log)')
@@ -243,10 +338,10 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     axs[0, 0].legend()
 
     # Cycles Comparison
-    axs[0, 1].plot(size_perf['size'], size_perf['nFFT_cycles'], 
-                 marker='o', label='nFFT Cycles', color='blue')
-    axs[0, 1].plot(size_perf['size'], size_perf['vFFT_cycles'], 
-                 marker='x', label='vFFT Cycles', color='red')
+    axs[0, 1].plot(size_perf['size'], size_perf['nFFT_cycles'],
+                   marker='o', label='nFFT Cycles', color='blue')
+    axs[0, 1].plot(size_perf['size'], size_perf['vFFT_cycles'],
+                   marker='x', label='vFFT Cycles', color='red')
     axs[0, 1].set_xscale('log')
     axs[0, 1].set_yscale('log')
     axs[0, 1].set_xlabel('Input Size (log)')
@@ -256,8 +351,8 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     axs[0, 1].legend()
 
     # Time Speedup
-    axs[1, 0].plot(size_perf['size'], size_perf['time_speedup'], 
-                 marker='D', label='Time Speedup', color='green')
+    axs[1, 0].plot(size_perf['size'], size_perf['time_speedup'],
+                   marker='D', label='Time Speedup', color='green')
     axs[1, 0].axhline(y=1, color='black', linestyle='--', alpha=0.5)
     axs[1, 0].set_xscale('log')
     axs[1, 0].set_xlabel('Input Size (log)')
@@ -267,8 +362,8 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     axs[1, 0].legend()
 
     # Cycle Speedup
-    axs[1, 1].plot(size_perf['size'], size_perf['cycle_speedup'], 
-                 marker='D', label='Cycle Speedup', color='purple')
+    axs[1, 1].plot(size_perf['size'], size_perf['cycle_speedup'],
+                   marker='D', label='Cycle Speedup', color='purple')
     axs[1, 1].axhline(y=1, color='black', linestyle='--', alpha=0.5)
     axs[1, 1].set_xscale('log')
     axs[1, 1].set_xlabel('Input Size (log)')
@@ -285,19 +380,22 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     # 3. Theoretical vs. Actual Performance Comparison
     # For FFT, theoretical complexity is O(n log n)
     plt.figure(figsize=fig_size)
-    
+
     # Calculate theoretical O(n log n) curve, scaled to match the actual data
     sizes_array = np.array(size_perf['size'])
     theoretical = sizes_array * np.log2(sizes_array)
     # Scale to match the vFFT data point for the middle size
     mid_idx = len(sizes_array) // 2
-    scale_factor = size_perf['vFFT_cycles'].iloc[mid_idx] / theoretical[mid_idx]
+    scale_factor = size_perf['vFFT_cycles'].iloc[mid_idx] / \
+        theoretical[mid_idx]
     theoretical = theoretical * scale_factor
-    
-    plt.plot(size_perf['size'], size_perf['nFFT_cycles'], 'o-', label='nFFT Actual')
-    plt.plot(size_perf['size'], size_perf['vFFT_cycles'], 'x-', label='vFFT Actual')
+
+    plt.plot(size_perf['size'], size_perf['nFFT_cycles'],
+             'o-', label='nFFT Actual')
+    plt.plot(size_perf['size'], size_perf['vFFT_cycles'],
+             'x-', label='vFFT Actual')
     plt.plot(sizes_array, theoretical, '--', label='Theoretical O(n log n)')
-    
+
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('Input Size (log)')
@@ -312,23 +410,26 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     # 4. Performance by Signal Type
     # Create a figure to compare performance across different signal types
     signal_perf = df.groupby(['size', 'signal_type']).agg({
-        'nFFT_time': 'mean', 
+        'nFFT_time': 'mean',
         'vFFT_time': 'mean',
-        'nFFT_cycles': 'mean', 
+        'nFFT_cycles': 'mean',
         'vFFT_cycles': 'mean'
     }).reset_index()
-    
+
     # Calculate speedup
-    signal_perf['speedup'] = signal_perf['nFFT_cycles'] / signal_perf['vFFT_cycles']
-    
+    signal_perf['speedup'] = signal_perf['nFFT_cycles'] / \
+        signal_perf['vFFT_cycles']
+
     # Pivot the data for easier plotting
-    pivot_speed = signal_perf.pivot(index='size', columns='signal_type', values='speedup')
-    
+    pivot_speed = signal_perf.pivot(
+        index='size', columns='signal_type', values='speedup')
+
     # Plot speedup by signal type
     plt.figure(figsize=fig_size)
     for signal_type in signal_types:
-        plt.plot(pivot_speed.index, pivot_speed[signal_type], marker='o', label=signal_type)
-    
+        plt.plot(pivot_speed.index,
+                 pivot_speed[signal_type], marker='o', label=signal_type)
+
     plt.xscale('log')
     plt.xlabel('Input Size (log)')
     plt.ylabel('Speedup Factor (nFFT/vFFT)')
@@ -340,17 +441,18 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     plt.close()
 
     # ===== ACCURACY ANALYSIS =====
-    
+
     # 5. Comprehensive Error Analysis
     # Calculate error statistics for different combinations
     error_stats = []
-    
+
     # Process each row in the dataframe
     for idx, row in df.iterrows():
         size = row['size']
         signal_type = row['signal_type']
         iteration = row['iteration']
-        
+        vector_size = row['vector_size']
+
         # Convert to numpy arrays if they aren't already
         npFFT_result = np.array(row['npFFT_result']).astype(np.complex64)
         vFFT_result = np.array(row['vFFT_result']).astype(np.complex64)
@@ -358,27 +460,29 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
         vIFFT_result = np.array(row['vIFFT_result']).astype(np.complex64)
         nIFFT_result = np.array(row['nIFFT_result']).astype(np.complex64)
         input_signal = np.array(row['input']).astype(np.complex64)
-        
+
         # Calculate errors
         vFFT_err = np.abs(npFFT_result - vFFT_result)
         nFFT_err = np.abs(npFFT_result - nFFT_result)
         vIFFT_err = np.abs(input_signal - vIFFT_result)
         nIFFT_err = np.abs(input_signal - nIFFT_result)
-        
+
         # Calculate normalized errors (relative to magnitude)
-        np_mag = np.maximum(np.abs(npFFT_result), 1e-10)  # Avoid division by zero
+        # Avoid division by zero
+        np_mag = np.maximum(np.abs(npFFT_result), 1e-10)
         input_mag = np.maximum(np.abs(input_signal), 1e-10)
-        
+
         vFFT_norm_err = vFFT_err / np_mag
         nFFT_norm_err = nFFT_err / np_mag
         vIFFT_norm_err = vIFFT_err / input_mag
         nIFFT_norm_err = nIFFT_err / input_mag
-        
+
         # Store statistics
         error_stats.append({
             'size': size,
             'signal_type': signal_type,
             'iteration': iteration,
+            'vector_size': vector_size,
             'vFFT_mean_err': vFFT_err.mean(),
             'vFFT_max_err': vFFT_err.max(),
             'vFFT_std_err': vFFT_err.std(),
@@ -396,9 +500,9 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
             'vIFFT_mean_norm_err': vIFFT_norm_err.mean(),
             'nIFFT_mean_norm_err': nIFFT_norm_err.mean(),
         })
-    
+
     error_df = pd.DataFrame(error_stats)
-    
+
     # Aggregate by size and signal type
     agg_error = error_df.groupby(['size', 'signal_type']).agg({
         'vFFT_mean_err': 'mean',
@@ -410,127 +514,129 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
         'vIFFT_mean_norm_err': 'mean',
         'nIFFT_mean_norm_err': 'mean',
     }).reset_index()
-    
+
     # Plot absolute error comparison
     fig, axs = plt.subplots(2, 2, figsize=fig_size, sharex=True)
     fig.suptitle('Mean Absolute Error Comparison', fontsize=14)
-    
+
     # Plot for each signal type
     for signal_type in signal_types:
         type_data = agg_error[agg_error['signal_type'] == signal_type]
-        
+
         # vFFT errors
-        axs[0, 0].plot(type_data['size'], type_data['vFFT_mean_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-        
+        axs[0, 0].plot(type_data['size'], type_data['vFFT_mean_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
         # nFFT errors
-        axs[0, 1].plot(type_data['size'], type_data['nFFT_mean_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-        
+        axs[0, 1].plot(type_data['size'], type_data['nFFT_mean_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
         # vIFFT errors
-        axs[1, 0].plot(type_data['size'], type_data['vIFFT_mean_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-        
+        axs[1, 0].plot(type_data['size'], type_data['vIFFT_mean_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
         # nIFFT errors
-        axs[1, 1].plot(type_data['size'], type_data['nIFFT_mean_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-    
+        axs[1, 1].plot(type_data['size'], type_data['nIFFT_mean_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
     # Set labels and titles
     axs[0, 0].set_title('vFFT Error')
     axs[0, 1].set_title('nFFT Error')
     axs[1, 0].set_title('vIFFT Error')
     axs[1, 1].set_title('nIFFT Error')
-    
+
     for ax in axs.flat:
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_xlabel('Input Size')
         ax.set_ylabel('Mean Absolute Error')
         ax.grid(True, alpha=0.3)
-    
+
     handles, labels = axs[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.99, 0.99))
-    
+
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
     pdf.savefig()
     plt.close()
-    
+
     # 6. Normalized Error Analysis
     # Plot normalized error comparison
     fig, axs = plt.subplots(2, 2, figsize=fig_size, sharex=True)
     fig.suptitle('Mean Normalized Error Comparison', fontsize=14)
-    
+
     # Plot for each signal type
     for signal_type in signal_types:
         type_data = agg_error[agg_error['signal_type'] == signal_type]
-        
+
         # vFFT errors
-        axs[0, 0].plot(type_data['size'], type_data['vFFT_mean_norm_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-        
+        axs[0, 0].plot(type_data['size'], type_data['vFFT_mean_norm_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
         # nFFT errors
-        axs[0, 1].plot(type_data['size'], type_data['nFFT_mean_norm_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-        
+        axs[0, 1].plot(type_data['size'], type_data['nFFT_mean_norm_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
         # vIFFT errors
-        axs[1, 0].plot(type_data['size'], type_data['vIFFT_mean_norm_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-        
+        axs[1, 0].plot(type_data['size'], type_data['vIFFT_mean_norm_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
         # nIFFT errors
-        axs[1, 1].plot(type_data['size'], type_data['nIFFT_mean_norm_err'], 
-                     marker='o', linestyle='-', label=signal_type)
-    
+        axs[1, 1].plot(type_data['size'], type_data['nIFFT_mean_norm_err'],
+                       marker='o', linestyle='-', label=signal_type)
+
     # Set labels and titles
     axs[0, 0].set_title('vFFT Normalized Error')
     axs[0, 1].set_title('nFFT Normalized Error')
     axs[1, 0].set_title('vIFFT Normalized Error')
     axs[1, 1].set_title('nIFFT Normalized Error')
-    
+
     for ax in axs.flat:
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_xlabel('Input Size')
         ax.set_ylabel('Mean Normalized Error')
         ax.grid(True, alpha=0.3)
-    
+
     handles, labels = axs[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.99, 0.99))
-    
+
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
     pdf.savefig()
     plt.close()
-    
+
     # 7. Error vs Speedup Trade-off Analysis
     # Plot showing the relationship between error and speedup
     plt.figure(figsize=fig_size)
-    
+
     # Aggregate data by size (average across signal types and iterations)
     size_tradeoff = agg_error.groupby('size').agg({
         'vFFT_mean_err': 'mean',
         'vIFFT_mean_err': 'mean'
     }).reset_index()
-    
+
     # Merge with performance data
     tradeoff_data = pd.merge(size_tradeoff, size_perf, on='size')
-    
+
     # Create scatter plot with size-coded points
-    sizes_for_scatter = [(s/min(tradeoff_data['size']))*100 for s in tradeoff_data['size']]
-    
+    sizes_for_scatter = [(s/min(tradeoff_data['size']))
+                         * 100 for s in tradeoff_data['size']]
+
     # Vectorized FFT error vs speedup
-    sc = plt.scatter(tradeoff_data['vFFT_mean_err'], tradeoff_data['cycle_speedup'], 
-                    s=sizes_for_scatter, alpha=0.7, c=tradeoff_data['size'], 
-                    cmap='viridis', edgecolors='black', label='vFFT')
-    
+    sc = plt.scatter(tradeoff_data['vFFT_mean_err'], tradeoff_data['cycle_speedup'],
+                     s=sizes_for_scatter, alpha=0.7, c=tradeoff_data['size'],
+                     cmap='viridis', edgecolors='black', label='vFFT')
+
     # Add size annotations to points
     for i, size in enumerate(tradeoff_data['size']):
-        plt.annotate(str(size), 
-                    (tradeoff_data['vFFT_mean_err'].iloc[i], tradeoff_data['cycle_speedup'].iloc[i]),
-                    textcoords="offset points", 
-                    xytext=(0,10), 
-                    ha='center')
-    
+        plt.annotate(str(size),
+                     (tradeoff_data['vFFT_mean_err'].iloc[i],
+                      tradeoff_data['cycle_speedup'].iloc[i]),
+                     textcoords="offset points",
+                     xytext=(0, 10),
+                     ha='center')
+
     plt.xscale('log')
     plt.xlabel('Mean Absolute Error (log)')
     plt.ylabel('Speedup Factor (nFFT/vFFT)')
@@ -540,86 +646,92 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     plt.tight_layout()
     pdf.savefig()
     plt.close()
-    
+
     # 8. Statistical Analysis
     # Perform statistical tests to determine if differences are significant
     # Group by size
     plt.figure(figsize=fig_size)
     plt.axis('off')
-    plt.text(0.5, 0.95, "Statistical Significance Analysis", ha='center', fontsize=16, weight='bold')
-    
+    plt.text(0.5, 0.95, "Statistical Significance Analysis",
+             ha='center', fontsize=16, weight='bold')
+
     # Perform paired t-tests for each size
     result_text = []
     for size in sorted(df['size'].unique()):
         size_data = df[df['size'] == size]
-        
+
         # Paired t-test for cycle counts
-        t_stat, p_val = stats.ttest_rel(size_data['nFFT_cycles'], size_data['vFFT_cycles'])
+        t_stat, p_val = stats.ttest_rel(
+            size_data['nFFT_cycles'], size_data['vFFT_cycles'])
         cycle_sig = "Significant" if p_val < 0.05 else "Not significant"
-        
+
         # Paired t-test for error
         err_data = error_df[error_df['size'] == size]
-        t_stat_err, p_val_err = stats.ttest_rel(err_data['nFFT_mean_err'], err_data['vFFT_mean_err'])
+        t_stat_err, p_val_err = stats.ttest_rel(
+            err_data['nFFT_mean_err'], err_data['vFFT_mean_err'])
         err_sig = "Significant" if p_val_err < 0.05 else "Not significant"
-        
-        avg_speedup = size_data['nFFT_cycles'].mean() / size_data['vFFT_cycles'].mean()
-        
-        result_text.append(f"Size {size}: Speedup = {avg_speedup:.2f}x, " 
-                          f"Cycle difference: {cycle_sig} (p={p_val:.4f}), "
-                          f"Error difference: {err_sig} (p={p_val_err:.4f})")
-    
+
+        avg_speedup = size_data['nFFT_cycles'].mean(
+        ) / size_data['vFFT_cycles'].mean()
+
+        result_text.append(f"Size {size}: Speedup = {avg_speedup:.2f}x, "
+                           f"Cycle difference: {cycle_sig} (p={p_val:.4f}), "
+                           f"Error difference: {err_sig} (p={p_val_err:.4f})")
+
     # Display results as text
     y_pos = 0.85
     for line in result_text:
         plt.text(0.1, y_pos, line, fontsize=10)
         y_pos -= 0.03
-    
+
     plt.tight_layout()
     pdf.savefig()
     plt.close()
-    
+
     # 9. Signal Reconstruction Quality Analysis
     # Calculate signal reconstruction quality (input vs IFFT(FFT(input)))
     recon_stats = []
-    
+
     for idx, row in df.iterrows():
         size = row['size']
         signal_type = row['signal_type']
         iteration = row['iteration']
-        
+        vector_size = row['vector_size']
+
         # Get the original input and the reconstructed signals
         input_signal = np.array(row['input']).astype(np.complex64)
-        
+
         # For vFFT: calculate FFT -> IFFT
         vFFT_result = np.array(row['vFFT_result']).astype(np.complex64)
         vIFFT_from_vFFT = np.array(row['vIFFT_result']).astype(np.complex64)
-        
+
         # For nFFT: calculate FFT -> IFFT
         nFFT_result = np.array(row['nFFT_result']).astype(np.complex64)
         nIFFT_from_nFFT = np.array(row['nIFFT_result']).astype(np.complex64)
-        
+
         # Calculate reconstruction errors
         v_recon_err = np.abs(input_signal - vIFFT_from_vFFT).mean()
         n_recon_err = np.abs(input_signal - nIFFT_from_nFFT).mean()
-        
+
         # Calculate normalized errors
         input_mag = np.maximum(np.abs(input_signal), 1e-10)
         v_norm_recon_err = np.abs(input_signal - vIFFT_from_vFFT) / input_mag
         n_norm_recon_err = np.abs(input_signal - nIFFT_from_nFFT) / input_mag
-        
+
         # Store results
         recon_stats.append({
             'size': size,
             'signal_type': signal_type,
             'iteration': iteration,
+            'vector_size': vector_size,
             'v_recon_err': v_recon_err,
             'n_recon_err': n_recon_err,
             'v_norm_recon_err': v_norm_recon_err.mean(),
             'n_norm_recon_err': n_norm_recon_err.mean()
         })
-    
+
     recon_df = pd.DataFrame(recon_stats)
-    
+
     # Aggregate by size and signal type
     agg_recon = recon_df.groupby(['size', 'signal_type']).agg({
         'v_recon_err': 'mean',
@@ -627,17 +739,17 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
         'v_norm_recon_err': 'mean',
         'n_norm_recon_err': 'mean'
     }).reset_index()
-    
+
     # Plot reconstruction error
     plt.figure(figsize=fig_size)
-    
+
     for signal_type in signal_types:
         type_data = agg_recon[agg_recon['signal_type'] == signal_type]
-        plt.plot(type_data['size'], type_data['v_recon_err'], 
-                marker='o', linestyle='-', label=f'vFFT-vIFFT {signal_type}')
-        plt.plot(type_data['size'], type_data['n_recon_err'], 
-                marker='x', linestyle='--', label=f'nFFT-nIFFT {signal_type}')
-    
+        plt.plot(type_data['size'], type_data['v_recon_err'],
+                 marker='o', linestyle='-', label=f'vFFT-vIFFT {signal_type}')
+        plt.plot(type_data['size'], type_data['n_recon_err'],
+                 marker='x', linestyle='--', label=f'nFFT-nIFFT {signal_type}')
+
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('Input Size (log)')
@@ -648,17 +760,17 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     plt.tight_layout()
     pdf.savefig()
     plt.close()
-    
+
     # 10. Normalized Reconstruction Error
     plt.figure(figsize=fig_size)
-    
+
     for signal_type in signal_types:
         type_data = agg_recon[agg_recon['signal_type'] == signal_type]
-        plt.plot(type_data['size'], type_data['v_norm_recon_err'], 
-                marker='o', linestyle='-', label=f'vFFT-vIFFT {signal_type}')
-        plt.plot(type_data['size'], type_data['n_norm_recon_err'], 
-                marker='x', linestyle='--', label=f'nFFT-nIFFT {signal_type}')
-    
+        plt.plot(type_data['size'], type_data['v_norm_recon_err'],
+                 marker='o', linestyle='-', label=f'vFFT-vIFFT {signal_type}')
+        plt.plot(type_data['size'], type_data['n_norm_recon_err'],
+                 marker='x', linestyle='--', label=f'nFFT-nIFFT {signal_type}')
+
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('Input Size (log)')
@@ -669,22 +781,22 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     plt.tight_layout()
     pdf.savefig()
     plt.close()
-    
+
     # 11. Comparison across Signal Types
     # Create boxplots to compare error distributions across signal types
     plt.figure(figsize=fig_size)
-    
+
     # Reshape data for boxplot
     boxplot_data = []
     labels = []
-    
+
     for signal_type in signal_types:
         type_data = error_df[error_df['signal_type'] == signal_type]
         boxplot_data.append(type_data['vFFT_mean_err'])
         labels.append(f'vFFT {signal_type}')
         boxplot_data.append(type_data['nFFT_mean_err'])
         labels.append(f'nFFT {signal_type}')
-    
+
     plt.boxplot(boxplot_data, labels=labels, vert=True)
     plt.yscale('log')
     plt.ylabel('Mean Absolute Error (log)')
@@ -694,42 +806,43 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     plt.tight_layout()
     pdf.savefig()
     plt.close()
-    
+
     # 12. Runtime vs Input Size at Power-of-Two Points
     # Filter for just power-of-2 sizes
     pow2_data = size_perf[size_perf['size'].isin(sizes)]
-    
+
     plt.figure(figsize=fig_size)
-    
+
     # Fit power law: time = a * n^b
     # For nFFT
     log_n = np.log(pow2_data['size'])
     log_t_n = np.log(pow2_data['nFFT_time'])
     slope_n, intercept_n, _, _, _ = stats.linregress(log_n, log_t_n)
-    
+
     # For vFFT
     log_t_v = np.log(pow2_data['vFFT_time'])
     slope_v, intercept_v, _, _, _ = stats.linregress(log_n, log_t_v)
-    
+
     # Plot actual data points
-    plt.scatter(pow2_data['size'], pow2_data['nFFT_time'], 
-               marker='o', label='nFFT Actual', color='blue')
-    plt.scatter(pow2_data['size'], pow2_data['vFFT_time'], 
-               marker='x', label='vFFT Actual', color='red')
-    
+    plt.scatter(pow2_data['size'], pow2_data['nFFT_time'],
+                marker='o', label='nFFT Actual', color='blue')
+    plt.scatter(pow2_data['size'], pow2_data['vFFT_time'],
+                marker='x', label='vFFT Actual', color='red')
+
     # Plot fitted curves
     x = np.array(sizes)
-    plt.plot(x, np.exp(intercept_n) * x**slope_n, 
-            '--', label=f'nFFT Fitted: O(n^{slope_n:.2f})', color='blue')
-    plt.plot(x, np.exp(intercept_v) * x**slope_v, 
-            '--', label=f'vFFT Fitted: O(n^{slope_v:.2f})', color='red')
-    
+    plt.plot(x, np.exp(intercept_n) * x**slope_n,
+             '--', label=f'nFFT Fitted: O(n^{slope_n:.2f})', color='blue')
+    plt.plot(x, np.exp(intercept_v) * x**slope_v,
+             '--', label=f'vFFT Fitted: O(n^{slope_v:.2f})', color='red')
+
     # Also plot theoretical n*log(n)
     theoretical = x * np.log2(x)
-    scale_factor = pow2_data['vFFT_time'].iloc[len(pow2_data)//2] / (theoretical[len(theoretical)//2])
-    plt.plot(x, scale_factor * theoretical, 
-            '--', label='Theoretical O(n log n)', color='green')
-    
+    scale_factor = pow2_data['vFFT_time'].iloc[len(
+        pow2_data)//2] / (theoretical[len(theoretical)//2])
+    plt.plot(x, scale_factor * theoretical,
+             '--', label='Theoretical O(n log n)', color='green')
+
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('Input Size (log)')
@@ -740,26 +853,30 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
     plt.tight_layout()
     pdf.savefig()
     plt.close()
-    
+
     # 13. Summary and Conclusions Page
     plt.figure(figsize=fig_size)
     plt.axis('off')
-    plt.text(0.5, 0.95, "Summary and Conclusions", ha='center', fontsize=20, weight='bold')
-    
+    plt.text(0.5, 0.95, "Summary and Conclusions",
+             ha='center', fontsize=20, weight='bold')
+
     # Calculate key metrics
     avg_speedup = size_perf['cycle_speedup'].mean()
     max_speedup = size_perf['cycle_speedup'].max()
-    max_speedup_size = size_perf.loc[size_perf['cycle_speedup'].idxmax(), 'size']
-    
+    max_speedup_size = size_perf.loc[size_perf['cycle_speedup'].idxmax(
+    ), 'size']
+
     avg_v_error = error_df['vFFT_mean_err'].mean()
     avg_n_error = error_df['nFFT_mean_err'].mean()
-    error_ratio = avg_n_error / avg_v_error if avg_v_error > 0 else float('inf')
-    
+    error_ratio = avg_n_error / \
+        avg_v_error if avg_v_error > 0 else float('inf')
+
     # Best sizes for performance vs accuracy tradeoff
     # Find sizes where speedup is high but error is low
-    tradeoff_data['score'] = tradeoff_data['cycle_speedup'] / tradeoff_data['vFFT_mean_err']
+    tradeoff_data['score'] = tradeoff_data['cycle_speedup'] / \
+        tradeoff_data['vFFT_mean_err']
     best_size = tradeoff_data.loc[tradeoff_data['score'].idxmax(), 'size']
-    
+
     # Write summary text
     summary_text = [
         f"1. Performance Metrics:",
@@ -786,22 +903,26 @@ with PdfPages("./results/analysis/" + report_filename) as pdf:
         f"   - Reconstruction quality remains good across implementations",
         f"   - Power-of-two sizes generally show better performance characteristics"
     ]
-    
+
     # Display text
     y_pos = 0.85
     for line in summary_text:
         plt.text(0.1, y_pos, line, fontsize=12)
         y_pos -= 0.028
-    
+
     plt.tight_layout()
     pdf.savefig()
     plt.close()
 
 # Save raw data to CSV for further analysis
 results_folder = "./results/data/"
-df.to_csv(results_folder + f'fft_analysis_raw_data_{timestamp}.csv', index=False)
-error_df.to_csv(results_folder + f'fft_error_analysis_{timestamp}.csv', index=False)
+df.to_csv(results_folder +
+          f'fft_analysis_raw_data_{timestamp}.csv', index=False)
+error_df.to_csv(results_folder +
+                f'fft_error_analysis_{timestamp}.csv', index=False)
 
 print(f"Analysis complete. Report saved to {results_folder + report_filename}")
-print(f"Raw data saved to {results_folder + f'fft_analysis_raw_data_{timestamp}.csv'}")
-print(f"Error analysis saved to {results_folder + f'fft_error_analysis_{timestamp}.csv'}")
+print(
+    f"Raw data saved to {results_folder + f'fft_analysis_raw_data_{timestamp}.csv'}")
+print(
+    f"Error analysis saved to {results_folder + f'fft_error_analysis_{timestamp}.csv'}")
