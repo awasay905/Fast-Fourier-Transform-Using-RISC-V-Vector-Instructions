@@ -44,7 +44,7 @@ setlogN:
 # Function: reverse
 # Reverses the binary digits of a 32-bit integer.
 # Inputs:
-#   - v26: Input number to reverse.
+#   - v28: Input number to reverse.
 #   - a0: Number of significant bits to reverse (optional; default 32).
 #   - s1: 0x55555555
 #   - s2: 0x33333333
@@ -52,47 +52,47 @@ setlogN:
 #   - s4: 0x00FF00FF
 #   - s5: Number of bits to shift
 # Outputs:
-#   - v29: The reversed binary number.
+#   - v12: The reversed binary number.
 # Clobbers:
-#   - v1, v2
+#   - v8, v4
 vReverseIndexOffset:
     # Swap odd and even bits
-    vsrl.vi v1, v26, 1              # v29 >> 1
-    vand.vx v1, v1, s1              # (v29 >> 1) & 0x55555555
-    vand.vx v2, v26, s1             # v29 & 0x55555555
-    vsll.vi v2, v2, 1               # (v29 & 0x55555555) << 1
-    vor.vv v29, v1, v2              # Result back to v29
+    vsrl.vi v8, v28, 1              # v12 >> 1
+    vand.vx v8, v8, s1              # (v12 >> 1) & 0x55555555
+    vand.vx v4, v28, s1             # v12 & 0x55555555
+    vsll.vi v4, v4, 1               # (v12 & 0x55555555) << 1
+    vor.vv v12, v8, v4              # Result back to v12
 
     # Swap consecutive pairs
-    vsrl.vi v1, v29, 2              # v29 >> 2
-    vand.vx v1, v1, s2              # (v29 >> 2) & 0x33333333
-    vand.vx v2, v29, s2             # v29 & 0x33333333
-    vsll.vi v2, v2, 2               # (v29 & 0x33333333) << 2
-    vor.vv v29, v1, v2              # Result back to v29
+    vsrl.vi v8, v12, 2              # v12 >> 2
+    vand.vx v8, v8, s2              # (v12 >> 2) & 0x33333333
+    vand.vx v4, v12, s2             # v12 & 0x33333333
+    vsll.vi v4, v4, 2               # (v12 & 0x33333333) << 2
+    vor.vv v12, v8, v4              # Result back to v12
 
     # Swap nibbles
-    vsrl.vi v1, v29, 4              # v29 >> 4
-    vand.vx v1, v1, s3              # (v29 >> 4) & 0x0F0F0F0F
-    vand.vx v2, v29, s3             # v29 & 0x0F0F0F0F
-    vsll.vi v2, v2, 4               # (v29 & 0x0F0F0F0F) << 4
-    vor.vv v29, v1, v2              # Result back to v29
+    vsrl.vi v8, v12, 4              # v12 >> 4
+    vand.vx v8, v8, s3              # (v12 >> 4) & 0x0F0F0F0F
+    vand.vx v4, v12, s3             # v12 & 0x0F0F0F0F
+    vsll.vi v4, v4, 4               # (v12 & 0x0F0F0F0F) << 4
+    vor.vv v12, v8, v4              # Result back to v12
 
     # Swap bytes
-    vsrl.vi v1, v29, 8              # v29 >> 8
-    vand.vx v1, v1, s4              # (v29 >> 8) & 0x00FF00FF
-    vand.vx v2, v29, s4             # v29 & 0x00FF00FF
-    vsll.vi v2, v2, 8               # (v29 & 0x00FF00FF) << 8
-    vor.vv v29, v1, v2              # Result back to v29
+    vsrl.vi v8, v12, 8              # v12 >> 8
+    vand.vx v8, v8, s4              # (v12 >> 8) & 0x00FF00FF
+    vand.vx v4, v12, s4             # v12 & 0x00FF00FF
+    vsll.vi v4, v4, 8               # (v12 & 0x00FF00FF) << 8
+    vor.vv v12, v8, v4              # Result back to v12
 
     # Swap 2-byte pairs
-    vsrl.vi v1, v29, 16             # v29 >> 16
-    vsll.vi v2, v29, 16             # v29 << 16
-    vor.vv v29, v1, v2              # Final result in v29
+    vsrl.vi v8, v12, 16             # v12 >> 16
+    vsll.vi v4, v12, 16             # v12 << 16
+    vor.vv v12, v8, v4              # Final result in v12
 
     # Shift by the req bit size
-    vsrl.vx v29, v29, s5
+    vsrl.vx v12, v12, s5
     
-    ret                             # Return with result in v29
+    ret                             # Return with result in v12
 
 
 
@@ -261,7 +261,7 @@ v_sin_cos_approx:
 # Clobbers:
 #   - v1, v2: vector registers used for bit manipulation and indexing
 #   - t1, t2, t3, t4, t5, t6: Temporary registers used for intermediate calculations
-#   - v23, v24, v26, v27, v29: Additional registers used during reordering
+#   - v20, v24, v28, v16, v12: Additional registers used during reordering
 vOrdina:
     # Save used callee registers to stack
     addi sp, sp, -28                
@@ -273,13 +273,13 @@ vOrdina:
     sw s4, 20(sp)
     sw s5, 24(sp)
 
-    # Load pointers to temp array. TODO: Replace them with sbrk or via argument
+    # Load pointers to temp array
     la t4, real_temp                # t4    = real_temp[] pointer
     la t5, imag_temp                # t5    = imag_temp[] pointer 
     lw a7, logsize                  # log(N) used in reversing
     
-    vsetvli t3, a2, e32, m1         # Request vector for a2 length
-    vid.v  v26                      # v26 = {0, 1, 2, ... VLEN-1}
+    vsetvli t3, a2, e32, m4         # Request vector for a2 length
+    vid.v  v28                      # v28 = {0, 1, 2, ... VLEN-1}
 
     # Load mask and shift bits for reverse. This is required for reverse function
     li s1, 0x55555555
@@ -293,28 +293,28 @@ vOrdina:
     vOrdinaLoop:                   
     bge t2, a2, endVOrdinaLoop      
 
-    # Bit reverse the index in v26. Output in v29
+    # Bit reverse the index in v28. Output in v12
     call vReverseIndexOffset
 
     # Load from normal array reversed indexed
-    vloxei32.v v23, 0(a0), v29       
-    vloxei32.v v24, 0(a1), v29     
+    vloxei32.v v20, 0(a0), v12       
+    vloxei32.v v24, 0(a1), v12     
 
     # Generate Index Offset
-    vsll.vi v27, v26, 2   
+    vsll.vi v16, v28, 2   
 
     # Save to temp array normal index
-    vsoxei32.v v23, 0(t4), v27            
-    vsoxei32.v v24, 0(t5), v27           
+    vsoxei32.v v20, 0(t4), v16            
+    vsoxei32.v v24, 0(t5), v16           
 
     # Increment index and coutner
-    vadd.vx v26, v26, t3           
+    vadd.vx v28, v28, t3           
     add t2, t2, t3            
     j vOrdinaLoop
     endVOrdinaLoop:
 
-    vid.v v26                       # v26 = {0, 1, 2, ... VLEN-1}
-    vsll.vi v26, v26, 2             # Shift the indexes by 4 so it matches array offsets
+    vid.v v28                       # v28 = {0, 1, 2, ... VLEN-1}
+    vsll.vi v28, v28, 2             # Shift the indexes by 4 so it matches array offsets
     slli t6, t3, 2                  # Shift VLEN by 4. Now  just add shifted vlen to shifted indexes
 
     li t1, 0              
@@ -322,19 +322,22 @@ vOrdina:
     bge t1, a2, endvOrdinaLoop2   
 
     # Indxed Load from temp array
-    vloxei32.v v23, 0(t4), v26             
-    vloxei32.v v24, 0(t5), v26            
+    vloxei32.v v20, 0(t4), v28             
+    vloxei32.v v24, 0(t5), v28            
 
     # Indxed Store to normal array
-    vsoxei32.v v23, 0(a0), v26           
-    vsoxei32.v v24, 0(a1), v26
+    vsoxei32.v v20, 0(a0), v28           
+    vsoxei32.v v24, 0(a1), v28
 
     # Incrementing Indexes
-    vadd.vx v26, v26, t6           
+    vadd.vx v28, v28, t6           
     add t1, t1, t3                 
 
     j vOrdinaLoop2              
     endvOrdinaLoop2:
+
+    # Restore vector to non grouped
+    vsetvli zero, a2, e32, m1
 
     # Restore registers
     lw a7, 0(sp)
