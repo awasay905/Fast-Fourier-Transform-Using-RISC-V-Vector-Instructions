@@ -1,7 +1,7 @@
 from python.functions import process_file
 
 
-file_path = "./veer/tempFiles/logNV2.txt"  # Replace with your log file path
+file_path = "./veer/tempFiles/logV2.txt"  # Replace with your log file path
 realVal, imagVal = process_file(file_path)
 print("Total", len(realVal), "values found.")
 for i in range(len(realVal)):

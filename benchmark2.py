@@ -23,10 +23,10 @@ num_iterations = 5
 # Add different types of input signals for testing
 signal_types = ['random', 'sine', 'impulse', 'step', 'chirp']
 
-# Function to generate different test signals
-
 
 def generate_test_signal(size, signal_type):
+    # Function to generate different test signals
+
     if signal_type == 'random':
         # Complex random signal
         return np.random.random(size) + 1j * np.random.random(size)
@@ -54,10 +54,10 @@ def generate_test_signal(size, signal_type):
         # Default to random
         return np.random.random(size) + 1j * np.random.random(size)
 
-# Function to run tests for all signal types and collect results
-
 
 def run_comprehensive_tests(sizes, signal_types, num_iterations):
+    # Function to run tests for all signal types and collect results
+
     all_results = []
 
     for vector_size in vector_sizes:
@@ -75,10 +75,10 @@ def run_comprehensive_tests(sizes, signal_types, num_iterations):
 
     return all_results
 
-# Function to run a single test and collect results
-
 
 def run_single_test(size, input_signal, signal_type, iteration, vector_size):
+    # Function to run a single test and collect results
+
     # Run the existing test function with our input
     import os
     os.makedirs(
@@ -119,129 +119,221 @@ def flatten_results_custom(results):
     return flat_list
 
 
+def aggregate_fft_data(df):
+    """
+    Aggregate FFT data by size and vector_size, taking first values for input/result data
+    and calculating means for cycles, time, and instruction counts.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        The original DataFrame containing FFT benchmark data
+
+    Returns:
+    --------
+    pandas.DataFrame
+        A new DataFrame aggregated by size and vector_size
+    """
+    import pandas as pd
+    import numpy as np
+    import ast
+
+    # Create a new dataframe to store results
+    result_df = pd.DataFrame()
+
+    # Helper function to average dictionaries
+    def average_dicts(dicts_list):
+        if not dicts_list:
+            return {}
+
+        # Convert string representations to dicts if needed
+        processed_dicts = []
+        for d in dicts_list:
+            if isinstance(d, str):
+                try:
+                    processed_dicts.append(ast.literal_eval(d))
+                except:
+                    continue
+            elif isinstance(d, dict):
+                processed_dicts.append(d)
+
+        if not processed_dicts:
+            return {}
+
+        # Collect all keys
+        all_keys = set()
+        for d in processed_dicts:
+            all_keys.update(d.keys())
+
+        # Average the values for each key
+        result = {}
+        for key in all_keys:
+            values = [d.get(key, 0) for d in processed_dicts]
+            result[key] = sum(values) / len(values)
+
+        return result
+
+    # Get unique combinations of size and vector_size
+    unique_combos = df[['size', 'vector_size']].drop_duplicates()
+
+    # For each combination, aggregate the data
+    rows = []
+    for _, combo in unique_combos.iterrows():
+        size = combo['size']
+        vector_size = combo['vector_size']
+
+        # Filter dataframe by this combination
+        filtered_df = df[(df['size'] == size) & (
+            df['vector_size'] == vector_size)]
+
+        # Create a row for this combination
+        row = {
+            'size': size,
+            'vector_size': vector_size
+        }
+
+        # Input and result columns - take first value
+        input_cols = ['input', 'npFFT_result', 'npIFFT_result', 'nFFT_result',
+                      'nIFFT_result', 'vFFT_result', 'vIFFT_result']
+        for col in input_cols:
+            if col in df.columns:
+                row[col] = filtered_df[col].iloc[0]
+
+        # Metric columns - take mean
+        metric_cols = ['npFFT_time', 'npIFFT_time',
+                       'nFFT_cycles', 'nFFT_time', 'nIFFT_cycles', 'nIFFT_time',
+                       'vFFT_cycles', 'vFFT_time', 'vIFFT_cycles', 'vIFFT_time']
+        for col in metric_cols:
+            if col in df.columns:
+                row[col] = filtered_df[col].mean()
+
+        # Dictionary columns - average dictionaries
+        vector_ins_cols = ['nFFT_nonVectorIns', 'nIFFT_nonVectorIns',
+                           'vFFT_vectorIns', 'vFFT_nonVectorIns', 'vIFFT_vectorIns', 'vIFFT_nonVectorIns']
+        for col in vector_ins_cols:
+            if col in df.columns:
+                row[col] = average_dicts(filtered_df[col].tolist())
+
+        rows.append(row)
+
+    # Create the result dataframe
+    result_df = pd.DataFrame(rows)
+
+    return result_df
+
+
 # Run the comprehensive tests
 results = run_comprehensive_tests(sizes, signal_types, num_iterations)
 results = flatten_results_custom(results)
 
 # Create a pandas DataFrame from the results
 df = pd.DataFrame(results)
-# TODO show how the percentage of instructions  scaled etcd
-
-categories = {
-    "Vector Load/Store Normal": {"vle", "vse"},
-    "Vector Load/Store Indexed": {"vloxei", "vsoxei"},
-    "Vector Floating Point Arithmetic": {
-        "vfadd", "vfsub", "vfmul", "vfmacc", "vfsgnjn", "vfdiv", "vfcvt", "vfncvt",
-        "vfmv.v.f", "vfnmsac.vv", "vfmadd.vv"
-    },
-    "Vector Floating Compare": {"vmfeq", "vmfne", "vmflt", "vmfle", "vmfgt", "vmfge"},
-    "Vector Integer Arithmetic": {"vadd", "vsub", "vmul", "vdiv", "vrem", "vsll", "vsrl", "vsra"},
-    "Vector Integer Compare": {"vmseq.vx"},
-    "Vector Bitwise": {"vand", "vor", "vxor"},
-    "Vector Other": {"vid.v", "vmv.v.v", "vmerge.vvm"},
-    "Non-Vector Load": {"lw", "flw", "c.lwsp", "c.flwsp"},
-    "Non-Vector Store": {"sw", "sb", "c.swsp"},
-    "Non-Vector Floating Point": {"fcvt", "fdiv", "fcvt.s.w"},
-    "Non-Vector Integer Arithmetic": {"add", "sub", "mul", "slli", "srai", "addi"},
-    "Non-Vector Bitwise": {"clz"},
-    "Non-Vector Control": {"bge", "beq", "bne", "blt", "ble", "c.j", "c.jal", "c.jr", "c.add"},
-    "Non-Vector Other": {"auipc", "lui", "c.li", "c.addi", "c.slli", "c.srai"}
-}
+aggregated_data = aggregate_fft_data(df)
+print(aggregated_data.iloc[10])
 
 
-# Define cycle counts per instruction type (example values)
-instruction_cycles = {
-    "Vector Load/Store Normal": 4,
-    "Vector Store Indexed": 6,
-    "Vector Floating Point": 4,
-    "Vector Integer Arithmetic": 2,
-    "Vector Bitwise": 2,
-    "Vector Other": 3,
-    "Non-Vector Load": 3,
-    "Non-Vector Store": 3,
-    "Non-Vector Floating Point": 4,
-    "Non-Vector Integer Arithmetic": 1,
-    "Non-Vector Control": 2,
-    "Non-Vector Other": 1
-}
 
 
-def categorize_and_analyze(vec_ins, non_vec_ins, categories):
+# Helper function to sum values in dictionary cells ensuring float conversion.
+def sum_dict(cell):
+    if isinstance(cell, dict):
+        return sum(float(v) for v in cell.values())
+    return 0
 
-    category_counts = {key: 0 for key in categories}
+# Compute totals for vector and non-vector instructions (using vFFT columns as an example).
+aggregated_data['vFFT_vector_total'] = aggregated_data['vFFT_vectorIns'].apply(sum_dict)
+aggregated_data['vFFT_nonvector_total'] = aggregated_data['vFFT_nonVectorIns'].apply(sum_dict)
 
-    for inst, count in vec_ins.items():
-        categorized = False
-        for category, prefixes in categories.items():
-            if any(inst.startswith(prefix) for prefix in prefixes):
-                category_counts[category] += count
-                categorized = True
-                break
-        if not categorized:
-            print(inst)
-            category_counts["Vector Other"] += count
+# Ensure floating point division.
+aggregated_data['vector_ratio'] = aggregated_data['vFFT_vector_total'].astype(float) / aggregated_data['vFFT_nonvector_total'].astype(float)
 
-    for inst, count in non_vec_ins.items():
-        categorized = False
-        for category, prefixes in categories.items():
-            if any(inst.startswith(prefix) for prefix in prefixes):
-                category_counts[category] += count
-                categorized = True
-                break
-        if not categorized:
-            category_counts["Non-Vector Other"] += count
+# Get the four unique vector sizes.
+unique_vector_sizes = sorted(aggregated_data['vector_size'].unique())
 
-    total = sum(category_counts.values())
-    category_percentages = {
-        key: (value / total) * 100 for key, value in category_counts.items()}
+# Create a 2x2 grid for each vector size.
+fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex=False)
+axes = axes.flatten()
 
-    sorted_counts = dict(sorted(category_counts.items(),
-                         key=lambda item: item[1], reverse=True))
-    sorted_percentages = dict(
-        sorted(category_percentages.items(), key=lambda item: item[1], reverse=True))
+for ax, vs in zip(axes, unique_vector_sizes):
+    # Filter and sort by 'size' for the current vector size.
+    group = aggregated_data[aggregated_data['vector_size'] == vs].sort_values('size')
+    x = group['size']
+    y_vector = group['vFFT_vector_total']
+    y_nonvector = group['vFFT_nonvector_total']
+    y_ratio = group['vector_ratio']
+    
+    # Plot filled areas for vector and non-vector instruction counts.
+    ax.fill_between(x, y_vector, step='post', alpha=0.4, label='Vector Ins Total')
+    ax.fill_between(x, y_nonvector, step='pre', alpha=0.4, color='orange', label='Non-Vector Ins Total')
+    
+    # Plot and fill the ratio curve.
+    ax.plot(x, y_ratio, marker='o', color='green', label='Vector Ratio')
+    ax.fill_between(x, y_ratio, step='pre', alpha=0.3, color='green')
+    
+    ax.set_title(f'Vector Size = {vs}')
+    ax.set_xlabel('Size')
+    ax.set_ylabel('Counts / Ratio')
+    ax.set_xscale("log")
+    ax.legend()
+    
+    # Set the x-ticks to the unique size values from the group.
+    ax.set_xticks(x)
+    ax.tick_params(axis='x', rotation=45)
 
-    return sorted_counts, sorted_percentages
+plt.tight_layout()
+plt.show()
 
-    # Group by size and signal_type, and calculate the mean of the cycles
-grouped_data = df.groupby(['size', 'signal_type']).agg(
-        {'nFFT_cycles': 'mean', 'vFFT_cycles': 'mean'}).reset_index()
-print(grouped_data)
-print(df.iloc[250])
-sorted_counts, sorted_percentages = categorize_and_analyze(
-    df.iloc[250]['vIFFT_vectorIns'], df.iloc[250]['vIFFT_nonVectorIns'], categories)
-print(sorted_counts, sorted_percentages)
-exit()
+# Helper function: sum values in a dictionary cell
+def sum_dict(cell):
+    return sum(cell.values()) if isinstance(cell, dict) else 0
 
+# Compute totals and ratio (using vFFT instruction columns as an example)
+aggregated_data['vFFT_vector_total'] = aggregated_data['vFFT_vectorIns'].apply(sum_dict)
+aggregated_data['vFFT_nonvector_total'] = aggregated_data['vFFT_nonVectorIns'].apply(sum_dict)
+aggregated_data['vector_ratio'] = aggregated_data['vFFT_vector_total'] / aggregated_data['vFFT_nonvector_total']
 
-def plot_data(df):
-    # Plot vector vs. non-vector time
-    plt.figure(figsize=(10, 5))
-    sns.lineplot(data=df, x='size', y='vector_time', label='Vector Time')
-    sns.lineplot(data=df, x='size', y='non_vector_time',
-                 label='Non-Vector Time')
-    plt.xlabel("Size")
-    plt.ylabel("Estimated Execution Time")
-    plt.title("Vector vs. Non-Vector Execution Time by Size")
-    plt.legend()
-    plt.show()
+# Define the four unique vector sizes and two size ranges
+vector_sizes = sorted(aggregated_data['vector_size'].unique())
+size_ranges = [(0, 1024), (1024, 8192)]
 
-    # Stacked bar chart for instruction categories
-    df_melted = df.melt(id_vars=['size', 'fft_type'],
-                        var_name='Category', value_name='Count')
-    plt.figure(figsize=(12, 6))
-    sns.barplot(data=df_melted, x='size', y='Count', hue='Category')
-    plt.xlabel("Size")
-    plt.ylabel("Instruction Count")
-    plt.title("Breakdown of Instruction Categories by Size")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.show()
+# Create a 4x2 grid: 4 rows for vector sizes and 2 columns for size ranges
+fig, axes = plt.subplots(nrows=4, ncols=2, figsize=(16, 16), sharex=False, sharey=False)
 
+for i, vs in enumerate(vector_sizes):
+    for j, (low, high) in enumerate(size_ranges):
+        ax = axes[i, j]
+        # Filter the data for the current vector size and size range
+        group = aggregated_data[
+            (aggregated_data['vector_size'] == vs) &
+            (aggregated_data['size'] >= low) &
+            (aggregated_data['size'] < high)
+        ].sort_values('size')
+        
+        # Plot filled curves for vector instruction counts
+        ax.fill_between(group['size'], group['vFFT_vector_total'], color='blue', alpha=0.3, label='Vector Ins Total')
+        ax.plot(group['size'], group['vFFT_vector_total'], color='blue', marker='o')
+        
+        # Plot filled curves for non-vector instruction counts
+        ax.fill_between(group['size'], group['vFFT_nonvector_total'], color='orange', alpha=0.3, label='Non-Vector Ins Total')
+        ax.plot(group['size'], group['vFFT_nonvector_total'], color='orange', marker='s')
+        
+        ax.set_title(f'Vector Size = {vs}, Size: {low}–{high}')
+        ax.set_xlabel('Size')
+        ax.set_ylabel('Instruction Count')
+        
+        # Create a twin axis for the ratio
+        ax2 = ax.twinx()
+        ax2.plot(group['size'], group['vector_ratio'], color='green', marker='^', label='Vector Ratio')
+        ax2.set_ylabel('Vector/Non-Vector Ratio')
+        ax2.set_ylim(0, 1.1)  # Ratio is between 0 and 1
+        
+        # Combine legends from both axes
+        lines, labels = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines + lines2, labels + labels2, loc='upper left')
 
-# Example usage
-# Assuming 'results' is available
-df = pd.DataFrame(flatten_results_custom(results))
-processed_df = process_dataframe(df)
-plot_data(processed_df)
+plt.tight_layout()
+plt.show()
 exit()
 
 

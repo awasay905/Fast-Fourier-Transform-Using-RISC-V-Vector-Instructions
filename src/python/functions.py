@@ -1039,7 +1039,7 @@ def performTestsAndSaveResults(sizes: list[int], filename: str = f"{RESULT_FOLDE
     existing_results = []
     if os.path.exists(filename+'.pickle'):
         existing_results = loadResults(filename)
-        print(f"Loaded existing results from {filename}")
+        # print(f"Loaded existing results from {filename}")
 
     # Gather tested sizes
     tested_sizes = {result['size'] for result in existing_results}
@@ -1048,7 +1048,7 @@ def performTestsAndSaveResults(sizes: list[int], filename: str = f"{RESULT_FOLDE
     sizes_to_test = [size for size in sizes if size not in tested_sizes]
 
     if not sizes_to_test:
-        print("All sizes have already been tested. No new tests will be performed.")
+        # print("All sizes have already been tested. No new tests will be performed.")
         return existing_results  # Return existing results if no new tests are needed
 
     # Perform tests on remaining sizes
