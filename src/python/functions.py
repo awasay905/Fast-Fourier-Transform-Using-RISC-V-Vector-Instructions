@@ -373,6 +373,60 @@ def hex_to_float(hex_array: list[str]) -> list[float]:
     return float_array
 
 
+def parse_log_lines(lines):
+    merged_lines = []
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i].rstrip()
+        parts = line.split()
+        
+        # Check if this is a continuation line (ends with +)
+        if line.endswith("+") or "+\n" in lines[i]:
+            # Get the prefix (first 6 columns)
+            if len(parts) >= 7:
+                prefix = " ".join(parts[:6])
+                hex_value = parts[6].rstrip("+")
+                
+                # Process continuation lines
+                j = i + 1
+                while j < len(lines):
+                    cont_parts = lines[j].rstrip().split()
+                    if len(cont_parts) >= 7:
+                        # Prepend the new hex value to the current hex value
+                        new_hex = cont_parts[6].rstrip("+")
+                        hex_value = new_hex + hex_value
+                    
+                    # If this line doesn't end with +, break after processing it
+                    if not lines[j].endswith("+") and "+\n" not in lines[j]:
+                        break
+                    
+                    j += 1
+                
+                # Include any remaining content from original line (after the 7th column)
+                remaining_content = ""
+                if len(parts) > 7:
+                    remaining_content = " " + " ".join(parts[7:])
+                
+                # Create merged line and add to results
+                merged_line = f"{prefix} {hex_value}{remaining_content}"
+                merged_lines.append(merged_line)
+                
+                # Move index to after the last processed line
+                i = j + 1
+            else:
+                # Handle malformed lines
+                merged_lines.append(line)
+                i += 1
+        else:
+            # For normal lines, just add them as is
+            merged_lines.append(line)
+            i += 1
+    
+    return merged_lines
+
+
+
 def find_log_pattern_index(file_name: str) -> list[int]:
     """
     Locate the starting line indices where a specific hexadecimal log pattern occurs twice in a file.
@@ -391,6 +445,7 @@ def find_log_pattern_index(file_name: str) -> list[int]:
     """
     with open(file_name, 'r') as file:
         lines = file.readlines()
+        lines = parse_log_lines(lines)
 
     # List of required values in the 7th column
     required_values = ["00123000", "00123456",
@@ -444,12 +499,14 @@ def process_file(file_name: str, delete_log_files: bool = False) -> np.ndarray:
     """
     import numpy as np
     start_index, end_index = find_log_pattern_index(file_name)
+    print(start_index, end_index)
     real = []
     imag = []
 
     try:
         with open(file_name, 'r') as file:
             lines = file.readlines()
+            lines = parse_log_lines(lines)
 
         if delete_log_files:
             import os

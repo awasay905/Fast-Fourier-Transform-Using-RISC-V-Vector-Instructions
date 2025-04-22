@@ -12,7 +12,7 @@ from scipy import stats
 
 
 # Define the sizes for testing
-sizes = [2 ** i for i in range(1, 14)]
+sizes = [2 ** i for i in range(1, 10)]
 
 # Vector Register Size in Bytes
 vector_sizes = [16, 32, 64, 128]  # Based on available vector procsessor sizes
@@ -334,7 +334,6 @@ for i, vs in enumerate(vector_sizes):
 
 plt.tight_layout()
 plt.show()
-exit()
 
 
 # Create a timestamp for naming the results PDF
