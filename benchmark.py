@@ -8,7 +8,7 @@ import seaborn as sns
 
 # First RUN FFT/IFFT ON DIFFERENT SIZES AND SAVE THE RESULTS
 # Define the sizes for testing. must be power of 2. You can change this to run on different sizes
-sizes = [2 ** i for i in range(17)]  # 2**16 is the limit
+sizes = [2 ** i for i in range(10)]  # 2**16 is the limit
 results = performTestsAndSaveResults(sizes)
 results = flatten_results(results)
 fig_size = (12, 7)

@@ -12,7 +12,7 @@ from scipy import stats
 
 
 # Define the sizes for testing
-sizes = [2 ** i for i in range(1, 10)]
+sizes = [2 ** i for i in range(1, 6)]
 
 # Vector Register Size in Bytes
 vector_sizes = [16, 32, 64, 128]  # Based on available vector procsessor sizes

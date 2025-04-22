@@ -173,7 +173,7 @@ def find_log_pattern(lines: list[str]) -> bool:
     return all(value in found_values for value in required_values)
 
 
-def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = True, save_full_log: bool = False) -> tuple[int, float, tuple[dict[str, int], dict[str, int]]]:
+def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = False, save_full_log: bool = False) -> tuple[int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compile and run an assembly file on the Veer RISC-V simulator, capturing execution logs and performance metrics.
 
@@ -247,6 +247,7 @@ def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = Tru
     end_time = -1
     measure_stop = False
     for command in commands:
+        print(command)
         try:
             if not measure_stop:
                 start_time = time.time()
@@ -301,6 +302,8 @@ def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = Tru
 
                 stderr_output = process.stderr.read()
                 if stderr_output:
+                    print(stderr_output)
+
                     # Search for the "Retired X instructions" pattern in the stderr
                     match = re.search(instruction_regex, stderr_output)
                     if match:
@@ -327,7 +330,7 @@ def simulate_on_veer(assembly_file: str, log_file: str, delete_files: bool = Tru
             exit(-1)
 
     timetaken = end_time - start_time
-
+    print(retired_instructions)
     return int(retired_instructions), timetaken, (vector_instructions, non_vector_instructions)
 
 
@@ -584,7 +587,7 @@ def process_file(file_name: str, delete_log_files: bool = False) -> np.ndarray:
         return real, imag
 
 
-def run(type: str, real: list[float], imag: list[float], array_size: int, delete_temp_files: bool = True, delete_log_files: bool = False, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
+def run(type: str, real: list[float], imag: list[float], array_size: int, delete_temp_files: bool = False, delete_log_files: bool = False, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Execute a specified FFT/IFFT operation using RISC-V assembly simulation on Veer.
 
@@ -705,7 +708,7 @@ def npIFFT(real: list[float], imag: list[float], _: int) -> tuple[np.ndarray, in
     return ifft, npIFFTcycles, elapsed_time, ({}, {})
 
 
-def nFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
+def nFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the FFT using RISC-V assembly code simulation on Veer.
 
@@ -731,7 +734,7 @@ def nFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: boo
     return run('FFT', real, imag, array_size, deleteFiles, False)
 
 
-def nIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
+def nIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the IFFT using RISC-V assembly code simulation on Veer.
 
@@ -757,7 +760,7 @@ def nIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bo
     return run('IFFT', real, imag, array_size, deleteFiles, False)
 
 
-def vFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
+def vFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = False, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the FFT using vectorized RISC-V assembly code simulation on Veer.
 
@@ -783,7 +786,7 @@ def vFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: boo
     return run('vFFT', real, imag, array_size, deleteFiles, False, save_full_log=save_full_log)
 
 
-def vIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = True, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
+def vIFFT(real: list[float], imag: list[float], array_size: int, deleteFiles: bool = False, save_full_log: bool = False) -> tuple[np.ndarray, int, float, tuple[dict[str, int], dict[str, int]]]:
     """
     Compute the IFFT using vectorized RISC-V assembly code simulation on Veer.
 

@@ -11,3 +11,7 @@ veer/tempFiles/*
 test
 src/python/__pycache__/newfunctions.cpython-312.pyc
 .tempTest/
+src/assemblyForPython/tempFiles/tempFFT.s
+src/assemblyForPython/tempFiles/tempIFFT.s
+src/assemblyForPython/tempFiles/tempvFFT.s
+src/assemblyForPython/tempFiles/tempvIFFT.s
