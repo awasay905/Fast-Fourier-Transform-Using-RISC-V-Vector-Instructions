@@ -3,33 +3,42 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Parameters
-N = 1024  # Number of points
+N = 2**23  # 33,554,432 points
+Fs = 1_000_000  # Sampling frequency in Hz
+T = 1 / Fs      # Sampling interval
 
-# Load CSV file
-loaded_data = np.loadtxt("./src/testData/signal_data.csv", delimiter=",", skiprows=1)
+# Time vector
+t = np.arange(N) * T
 
-# Extract time and signal separately
-t = loaded_data[:N, 0]
-signal = loaded_data[:N, 1]
+# Generate synthetic signal (sum of sine waves)
+signal = (
+    0.6 * np.sin(2 * np.pi * 1000 * t) +  # 1 kHz
+    0.3 * np.sin(2 * np.pi * 5000 * t) +  # 5 kHz
+    0.1 * np.sin(2 * np.pi * 20000 * t)   # 20 kHz
+).astype(np.float32)
 
-# Convert to float array
-real = np.array(signal, dtype=np.float32)
+# Prepare real and imaginary parts
+real = signal
 imag = np.zeros_like(signal)
 
 # Compute FFT
-npFFt = np.fft.fft(real)# NumPy FFT
-fft_result = vFFT(real, imag, N)[0] # Your FFT implementation
-# Compute magnitude spectrum
-np_magnitude = np.abs(npFFt)/ np.sqrt(N)
-my_magnitude = np.abs(fft_result)/ np.sqrt(N)
-frequencies = np.fft.fftfreq(N)  # Frequency axis
+npFFt = np.fft.fft(real)
+fft_result = vFFT(real, imag, N)[0]  # Your FFT implementation
 
-# Plot FFT magnitude spectrum (side by side)
+# Compute magnitude spectrum
+np_magnitude = np.abs(npFFt) / np.sqrt(N)
+my_magnitude = np.abs(fft_result) / np.sqrt(N)
+frequencies = np.fft.fftfreq(N, d=T)
+
+# Plot FFT magnitude spectrum (first 100 kHz for clarity)
+max_plot_freq = 100_000
+max_index = np.argmax(frequencies > max_plot_freq)
+
 plt.figure(figsize=(12, 5))
 
 # Your FFT plot
 plt.subplot(1, 2, 1)
-plt.plot(frequencies[:N//2], my_magnitude[:N//2])
+plt.plot(frequencies[:max_index], my_magnitude[:max_index])
 plt.title("My FFT Magnitude Spectrum")
 plt.xlabel("Frequency (Hz)")
 plt.ylabel("Magnitude")
@@ -37,7 +46,7 @@ plt.grid()
 
 # NumPy FFT plot
 plt.subplot(1, 2, 2)
-plt.plot(frequencies[:N//2], np_magnitude[:N//2])
+plt.plot(frequencies[:max_index], np_magnitude[:max_index])
 plt.title("NumPy FFT Magnitude Spectrum")
 plt.xlabel("Frequency (Hz)")
 plt.ylabel("Magnitude")
