@@ -60,7 +60,7 @@ setlogN:
 # Clobbers:
 #   - v1, v2: vector registers used for bit manipulation and indexing
 #   - t1, t2, t3, t4, t5, t6: Temporary registers used for intermediate calculations
-#   - v20, v24, v0, v16, v12: Additional registers used during reordering
+#   - v20, v24, v16, v12: Additional registers used during reordering
 vOrdina:
     # Save used callee registers to stack
     addi sp, sp, -36       
@@ -82,7 +82,7 @@ vOrdina:
     
     vsetvli t3, a2, e32, m8         # 4-Grouped Vector
     slli t6, t3, 2
-    vid.v  v0                      # v0 = {0, 1, 2, ... VLEN-1}
+    vid.v  v24                      # v24 = {0, 1, 2, ... VLEN-1}
 
     # Load mask and shift bits for reverse. This is required for reverse function
     li a3, 0x55555555
@@ -96,11 +96,11 @@ vOrdina:
     vOrdinaLoop:                   
     bge t2, a2, endVOrdinaLoop      
 
-    # Bit reverse the index in v0. Output in v16
+    # Bit reverse the index in v24. Output in v16
     # Swap odd and even bits
-    vsrl.vi v16, v0, 1                  # v16 >> 1
+    vsrl.vi v16, v24, 1                  # v16 >> 1
     vand.vx v16, v16, a3                # (v16 >> 1) & 0x55555555
-    vand.vx v8, v0, a3                  # v16 & 0x55555555
+    vand.vx v8, v24, a3                  # v16 & 0x55555555
     vsll.vi v8, v8, 1                   # (v16 & 0x55555555) << 1
     vor.vv v16, v16, v8                 # Result back to v16
 
@@ -133,16 +133,18 @@ vOrdina:
     # Shift by the req bit size
     vsrl.vx v16, v16, a7
 
-    # Load from normal array reversed indexed
-    vloxei32.v v8, 0(a0), v16       
-    vloxei32.v v24, 0(a1), v16     
+    # Load/save from  real  array  normal to twmpreversed indexed
+    vloxei32.v v8, 0(a0), v16
+    vse32.v v8, 0(t0)  
+
+    vloxei32.v v8, 0(a1), v16     
+    vse32.v v8, 0(t1)  
 
     # Save to temp array normal index
-    vse32.v v8, 0(t0)          
-    vse32.v v24, 0(t1)  
+            
 
     # Increment index and coutner
-    vadd.vx v0, v0, t3           
+    vadd.vx v24, v24, t3           
     add t2, t2, t3        
     add t0, t0, t6 
     add t1, t1, t6   
@@ -406,15 +408,15 @@ vIFFT:
     bge t1, a2, endVectorIFFTLoop
 
     # Load Real/Imag Pair 
-    vle32.v v0, 0(a0)               # load t0 real values to vector v0
+    vle32.v v16, 0(a0)               # load t0 real values to vector v16
     vle32.v v8, 0(a1)               # load t0 imag values to vector v8
 
     # Divide by N
-    vfdiv.vf v0, v0, ft0            # v0[i] = v0[i] / ft0 , ft0 is N in input
+    vfdiv.vf v16, v16, ft0            # v16[i] = v16[i] / ft0 , ft0 is N in input
     vfdiv.vf v8, v8, ft0            # v8[i] = v8[i] / ft0 , ft0 is N in input
 
     # Save back to memory
-    vse32.v v0, 0(a0)
+    vse32.v v16, 0(a0)
     vse32.v v8, 0(a1)
 
     # Increment address by VLEN*4
@@ -462,8 +464,8 @@ print:
     bge t0, a2, endPrintLoop
 
     # Load Real and Imag
-    vle32.v v0, 0(a0)
-    vle32.v v8, 0(a1)
+    vle32.v v8, 0(a0)
+    vle32.v v16, 0(a1)
 
     # Increment Pointers
     add a0, a0, t4
