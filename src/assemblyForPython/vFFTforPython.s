@@ -286,6 +286,8 @@ vTransform:
 
             # Load from W_array[k]
             vmul.vx v28, v28, s1
+            vloxei32.v v4, 0(t1), v28
+            vloxei32.v v28, 0(t2), v28
 
             # Now v28 contains W_imag for FFT, or -W_imag for IFFT
             vfsgnjx.vf v28, v28, ft0
