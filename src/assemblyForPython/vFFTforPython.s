@@ -281,27 +281,27 @@ vTransform:
 
             # Calculating k and offest
             # k = (i * a ) & (N/2 -1)
-            vand.vx v28, v24, s0, v0.t      
-            vsll.vi v28, v28, 2, v0.t     
+            vand.vx v28, v24, s0      
+            vsll.vi v28, v28, 2 
 
             # Load from W_array[k]
             vmul.vx v28, v28, s1
 
             # Now v28 contains W_imag for FFT, or -W_imag for IFFT
-            vfsgnjx.vf v28, v28, ft0, v0.t
+            vfsgnjx.vf v28, v28, ft0
 
             # Calculate i+n offset *dynamically* using a temporary register (e.g., v16)
-            vadd.vx v16, v20, a6, v0.t      # v16 = (i+n)*4 temporarily
+            vadd.vx v16, v20, a6      # v16 = (i+n)*4 temporarily
 
             # Load from array[i+n]
-            vloxei32.v v8, 0(a0), v16, v0.t
-            vloxei32.v v12, 0(a1), v16, v0.t
+            vloxei32.v v8, 0(a0), v16
+            vloxei32.v v12, 0(a1), v16
 
-            vfmul.vv v16, v4, v8, v0.t     # v16 = wreal*real[i+n]
-            vfnmsac.vv v16, v28, v12, v0.t   # v16 = v16 - v28*v12 = wreal*real[i+n] - wimag*imag[i+n]
+            vfmul.vv v16, v4, v8     # v16 = wreal*real[i+n]
+            vfnmsac.vv v16, v28, v12   # v16 = v16 - v28*v12 = wreal*real[i+n] - wimag*imag[i+n]
 
-            vfmul.vv v12, v4, v12, v0.t     # wrealk*imag{i+n}
-            vfmacc.vv v12, v28, v8, v0.t    # v12 = wrealk*imag[i+n] + wrealk*real{i+n}
+            vfmul.vv v12, v4, v12     # wrealk*imag{i+n}
+            vfmacc.vv v12, v28, v8    # v12 = wrealk*imag[i+n] + wrealk*real{i+n}
             
             # Loading values from index i
             vloxei32.v v4, 0(a0), v20 , v0.t   
