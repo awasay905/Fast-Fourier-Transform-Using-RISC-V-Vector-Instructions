@@ -251,8 +251,8 @@ vTransform:
     # k = (i * a) % (n * a); can be done as 
     # k = (i * a) & (N/2 - 1); 
     # Calculate (N/2 - 1) in s0
-    addi s0, a4, -1                
-
+    addi s0, a4, -1  
+    slli s2, s0, 2              
 
     forTransform:                   #runs logN times
         bge t3, a3, forTransformEnd
@@ -261,28 +261,19 @@ vTransform:
         # instead of recalculating (i+n)*4 and i*4
         # precalculate i and i+n, multiply by 4
         # keep adding vlen*4 to them in loop
-        vid.v v28
-        vsll.vi v20, v28, 2  # i*4
+        vid.v v24
+        vsll.vi v24, v24, 2  # i*4
 
-        # initializ i*a array then incrmement it in loop end by a*VLEN
-        # t6 will be a*vlen
-        vmul.vx v24, v28, a4
-        mul t6, a4, t0
         # also shift n by 2 to calculate i*4 & n without doing one addition
         slli a6, a5, 2
-
+        
         vinnerloop:                     # for i = 0; i < N
             bge t4, a2, vinnerloopend       # i  >= num elemenets
-            
-            # Calculate mask (i & n)
-            vand.vx v0, v20, a6           
-            vmseq.vx v0, v0, zero         # if (!(i & n)) which means this loop work only when result is 0
-            # Start of If block. Every operation is masked wrt v0
-
+       
             # Calculating k and offest
             # k = (i * a ) & (N/2 -1)
-            vand.vx v28, v24, s0      
-            vsll.vi v28, v28, 2 
+            vmul.vx v28, v24, a4
+            vand.vx v28, v28, s2      
 
             # Load from W_array[k]
             vmul.vx v28, v28, s1
@@ -293,8 +284,8 @@ vTransform:
             vfsgnjx.vf v28, v28, ft0
 
             # Calculate i+n offset *dynamically* using a temporary register (e.g., v16)
-            vadd.vx v16, v20, a6      # v16 = (i+n)*4 temporarily
-
+            vadd.vx v16, v24, a6      # v16 = (i+n)*4 temporarily
+            
             # Load from array[i+n]
             vloxei32.v v8, 0(a0), v16
             vloxei32.v v12, 0(a1), v16
@@ -302,36 +293,58 @@ vTransform:
             vfmul.vv v16, v4, v8     # v16 = wreal*real[i+n]
             vfnmsac.vv v16, v28, v12   # v16 = v16 - v28*v12 = wreal*real[i+n] - wimag*imag[i+n]
 
-            vfmul.vv v12, v4, v12     # wrealk*imag{i+n}
-            vfmacc.vv v12, v28, v8    # v12 = wrealk*imag[i+n] + wrealk*real{i+n}
-            
+            vfmul.vv v20, v4, v12     # wrealk*imag{i+n}
+            vfmacc.vv v20, v28, v8    # v20 = wrealk*imag[i+n] + wrealk*real{i+n}
+
             # Loading values from index i
-            vloxei32.v v4, 0(a0), v20 , v0.t   
-            vloxei32.v v28, 0(a1)  ,v20 , v0.t  
+            # Calculate mask (i & n)
+            vsrl.vx v0, v24, t3    
+            vand.vi v0, v0, 4               # doing 4 bcause my indices are multiple of 4
+            vsra.vi v0, v0, 2
+            vrsub.vi v28, v0, 1
 
-            vfadd.vv v8, v4, v16, v0.t
-            vfsub.vv v4, v4, v16, v0.t
-            vfadd.vv v16, v28, v12, v0.t
-            vfsub.vv v28, v28, v12, v0.t
+            # v8 is basicallt our v0.t mask but in normal form
+            vmul.vv v16, v16, v28         # multiply v16 by the mask making it 0 when (i&n)
+            vmul.vv v20, v20, v28         # multiply v20 by the mask making it 0 when (i&n)
 
-            # Saving values to index i
-            vsoxei32.v v8 , 0(a0), v20, v0.t 
-            vsoxei32.v v16, 0(a1), v20, v0.t 
+            vloxei32.v v4, 0(a0), v24       # load real[i]
+            vfadd.vv v28, v4, v16
+            vfsub.vv v16, v4, v16
+            vsoxei32.v v28 , 0(a0), v24      # save to real[i]
 
-            # Calculate i+n offset *again* for storing, reuse a temp (e.g. v8 since its value was just stored)
-            vadd.vx v8, v20, a6, v0.t       # v8 = (i+n)*4 temporarily (overwrites B_real[i])
+            vloxei32.v v28, 0(a1),v24  # load imag[i]
+            vfadd.vv v4, v28, v20
+            vfsub.vv v20, v28, v20
+            vsoxei32.v v4, 0(a1), v24 # save to imag[i]
 
-            # Saving values to index i+n
-            vsoxei32.v v4 , 0(a0), v8, v0.t  
-            vsoxei32.v v28 , 0(a1), v8, v0.t
+            # Calculate i+n offset *again* for storing
+            vadd.vx v4, v24, a6      # v8 = (i+n)*4
 
-            # incremenet v20(i) by vlen*4 (t5)
-            vadd.vx v20, v20, t5
+            # v8 and v12 contains the original values 
+            # from address a0 and a1
+            # v16 and v20 contains the new values 
+            # whih have to be written at plaved where v0==0
+            vrsub.vi v28, v0, 1
+            vmul.vv v16, v16, v28         # multiply v16 by the mask making it 0 when (i&n)
+            vmul.vv v20, v20, v28         # multiply v20 by the mask making it 0 when (i&n)
 
-            # incrmement i*a by a*VLEN
-            vadd.vx v24, v24, t6
+            vloxei32.v v8 , 0(a0), v4
+            vloxei32.v v12 , 0(a1), v4
+            vmul.vv v8, v8, v0         # multiply v20 by the mask making it 0 when (i&n)
+            vmul.vv v12, v12, v0        # multiply v20 by the mask making it 0 when (i&n)
+            vfadd.vv v8, v8, v16
+            vfadd.vv v12, v12, v20
+
+            vmseq.vx v0, v0, zero         # if (!(i & n)) which means this loop work only when result is 0     
+            
+            vsoxei32.v v8 , 0(a0), v4
+            vsoxei32.v v12 , 0(a1), v4
+
+            # incremenet v24(i) by vlen*4 (t5)
+            vadd.vx v24, v24, t5
         
             add t4, t4, t0                  # i += Vlen
+            
             j vinnerloop
         vinnerloopend:
 
