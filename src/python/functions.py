@@ -4,8 +4,8 @@ import pickle
 import numpy as np
 VEER_TEMP_FOLDER_PATH = './veer/tempFiles'
 VEER_FOLDER_PATH = './veer'
-TEST_TEMP_FOLDER_PATH = './src/assemblyForPython/tempFiles'
-TEST_CODE_FOLDER_PATH = './src/assemblyForPython'
+TEST_TEMP_FOLDER_PATH = VEER_TEMP_FOLDER_PATH
+TEST_CODE_FOLDER_PATH = './src/assembly'
 RESULT_FOLDER_PATH = './results/data'
 
 
@@ -70,7 +70,7 @@ def write_fft_type_to_assembly_file(input_file: str, output_file: str, fft_type:
 
     # Insert the fft/ifft after finding call XXXX in assembly file
     for i, line in enumerate(lines):
-        if "call" in line and "XXXX" in line:
+        if ("call" in line and "vFFT" in line) or ("call" in line and "vIFFT" in line):
             lines[lines.index(line)] = f"    call {fft_type}"
             break
 
@@ -84,23 +84,20 @@ def write_fft_type_to_assembly_file(input_file: str, output_file: str, fft_type:
 def write_array_to_assembly_file(input_file: str, output_file: str, real: list[int], imag: list[int], array_size: int) -> None:
     """
     Insert real and imaginary data arrays into the `.data` section of an assembly file.
-
     The function locates the `.data` section in the input file and inserts the provided real and
     imaginary arrays (formatted as assembly `.float` directives) along with a data size declaration.
-
     Parameters
     ----------
     input_file : str
-        Path to the input assembly file.
+    Path to the input assembly file.
     output_file : str
-        Path where the modified assembly file will be saved.
+    Path where the modified assembly file will be saved.
     real : list of int
-        List of real-number values.
+    List of real-number values.
     imag : list of int
-        List of imaginary-number values.
+    List of imaginary-number values.
     array_size : int
-        Size of the data array.
-
+    Size of the data array.
     Returns
     -------
     None
@@ -109,35 +106,54 @@ def write_array_to_assembly_file(input_file: str, output_file: str, real: list[i
     with open(input_file, 'r') as file:
         lines = file.readlines()
 
-    # Insert the array values after .data
-    for i, line in enumerate(lines):
-        if ".data" in line:
+        start_marker = "# PUT INPUT HERE, DO NO CHANHE ABOVE THIS"
+        end_marker = "# DO NOT CHANGE ANYTHING AFTER THIS LINE"
+        
+        start_idx = None
+        end_idx = None
+        
+        # Find the marker lines
+        for i, line in enumerate(lines):
+            if start_marker in line:
+                start_idx = i
+            elif end_marker in line:
+                end_idx = i
+                break
+        
+        if start_idx is not None and end_idx is not None:
+            # Remove old data between markers
+            del lines[start_idx+1:end_idx]
+            
+            # Prepare new data to insert
+            new_data = []
+            
             # Insert real array
-            lines.insert(i + 1, "real:\n")
+            new_data.append("real:\n")
             real_lines = format_array_as_data_string(real)
-            for j, real_line in enumerate(real_lines):
-                lines.insert(i + 2 + j, real_line + "\n")
-
+            for real_line in real_lines:
+                new_data.append(real_line + "\n")
+            
             # Insert a blank line
-            lines.insert(i + 2 + len(real_lines), "\n")
-
+            new_data.append("\n")
+            
             # Insert imag array
-            lines.insert(i + 3 + len(real_lines), "imag:\n")
+            new_data.append("imag:\n")
             imag_lines = format_array_as_data_string(imag)
-            for j, imag_line in enumerate(imag_lines):
-                lines.insert(i + 4 + len(real_lines) + j, imag_line + "\n")
-
+            for imag_line in imag_lines:
+                new_data.append(imag_line + "\n")
+            
             # Insert a blank line and data size declaration
-            lines.insert(i + 4 + len(real_lines) + len(imag_lines), "\n")
-            lines.insert(i + 5 + len(real_lines) + len(imag_lines),
-                         f".set dataSize, {array_size}\n")
-            break
-
-    # Write the modified content to a new file
-    with open(output_file, 'w') as file:
-        file.writelines(lines)
-
-    return
+            new_data.append("\n")
+            new_data.append(f".set dataSize, {array_size}\n")
+            
+            # Insert new data between markers
+            for i, data_line in enumerate(new_data):
+                lines.insert(start_idx + 1 + i, data_line)
+        
+        # Write the modified content to a new file
+        with open(output_file, 'w') as file:
+            file.writelines(lines)
+        return
 
 
 def find_log_pattern(lines: list[str]) -> bool:
@@ -628,11 +644,11 @@ def run(type: str, real: list[float], imag: list[float], array_size: int, delete
     logFile = f"{TEST_TEMP_FOLDER_PATH}/temp{type}log.txt"
     if type == 'vFFT' or type == 'vIFFT':
         write_array_to_assembly_file(
-            f"{TEST_CODE_FOLDER_PATH}/vFFTforPython.s", assemblyFile, real, imag, array_size)
+            f"{TEST_CODE_FOLDER_PATH}/FFT_V.s", assemblyFile, real, imag, array_size)
         write_fft_type_to_assembly_file(assemblyFile, assemblyFile, type)
     elif type == 'FFT' or type == 'IFFT':
         write_array_to_assembly_file(
-            f"{TEST_CODE_FOLDER_PATH}/FFTforPython.s", assemblyFile, real, imag, array_size)
+            f"{TEST_CODE_FOLDER_PATH}/FFT_NV2.s", assemblyFile, real, imag, array_size)
         write_fft_type_to_assembly_file(assemblyFile, assemblyFile, type)
     else:
         print("ERROR")
