@@ -332,11 +332,9 @@ vTransform:
             vloxei32.v v12 , 0(a1), v4
             vmul.vv v8, v8, v0         # multiply v20 by the mask making it 0 when (i&n)
             vmul.vv v12, v12, v0        # multiply v20 by the mask making it 0 when (i&n)
-            vfadd.vv v8, v8, v16
-            vfadd.vv v12, v12, v20
+            vor.vv v8, v8, v16
+            vor.vv v12, v12, v20
 
-            vmseq.vx v0, v0, zero         # if (!(i & n)) which means this loop work only when result is 0     
-            
             vsoxei32.v v8 , 0(a0), v4
             vsoxei32.v v12 , 0(a1), v4
 
