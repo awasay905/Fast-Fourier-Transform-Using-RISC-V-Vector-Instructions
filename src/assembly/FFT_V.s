@@ -265,7 +265,7 @@ vTransform:
 
         # also shift n by 2 to calculate i*4 & n without doing one addition
         slli a6, a5, 2
-        
+        addi s3, t3, 2
         vinnerloop:                     # for i = 0; i < N
             bge t4, a2, vinnerloopend       # i  >= num elemenets
        
@@ -297,9 +297,8 @@ vTransform:
 
             # Loading values from index i
             # Calculate mask (i & n)
-            vsrl.vx v0, v24, t3    
-            vand.vi v0, v0, 4               # doing 4 bcause my indices are multiple of 4
-            vsra.vi v0, v0, 2
+            vsrl.vx v0, v24, s3    
+            vand.vi v0, v0, 1               # doing 4 bcause my indices are multiple of 4
             vrsub.vi v28, v0, 1
 
             # v8 is basicallt our v0.t mask but in normal form
