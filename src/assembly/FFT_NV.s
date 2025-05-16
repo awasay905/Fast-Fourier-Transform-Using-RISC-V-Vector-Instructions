@@ -13,7 +13,6 @@ main:
     lw a2, size                     # Load size of real/imag arrays into a2
 
     call FFT                        # Perform FFT on real[] and imag[] arrays
-    call IFFT                       # Perform IFFT on real[] and imag[] arrays
     call print                      # Log the values of the arrays for debugging or display
 
     j _finish                       # Jump to program finish/exit
