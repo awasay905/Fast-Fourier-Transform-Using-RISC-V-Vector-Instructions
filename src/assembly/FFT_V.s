@@ -209,7 +209,7 @@ vOrdina:
 # Clobbers:
 #   - General-purpose: t0-t6, s0-s5, a4-a6
 #   - Floating-point: ft1, ft3
-#   - Vector: v0, v7-v10, v11-v26, v21, v20, v23-v25, v28, v30
+#   - Vector: v7-v10, v11-v26, v21, v20, v23-v25, v28, v30
 vTransform:
     addi sp, sp, -36
     sw ra,0(sp)
@@ -235,10 +235,11 @@ vTransform:
     la t1, W_real_max
     la t2, W_imag_max
     
-    vsetvli t0, a2, e32, m4    
-
     li a5, 1                        # a5    = n     = 1
     srai a4, a2, 1                  # a4    = a     = N / 2
+
+    srai a2, a2, 1         # a2 = N / 2
+    vsetvli t0, a2, e32, m4    
 
     li t3, 0                        # t3    = j     = 0
     lw a3, logsize
@@ -253,21 +254,25 @@ vTransform:
     addi s0, a4, -1  
     slli s2, s0, 2              
 
-    forTransform:                   #runs logN times
+    forTransform:                       #runs logN times
         bge t3, a3, forTransformEnd
-        li t4, 0                        # t4 = i = 0
-        
-        # instead of recalculating (i+n)*4 and i*4
-        # precalculate i and i+n, multiply by 4
-        # keep adding vlen*4 to them in loop
-        vid.v v24
-        vsll.vi v24, v24, 2  # i*4
 
-        # also shift n by 2 to calculate i*4 & n without doing one addition
-        slli a6, a5, 2
-        addi s3, t3, 2
-        vinnerloop:                     # for i = 0; i < N
-            bge t4, a2, vinnerloopend       # i  >= num elemenets
+        addi s5, a5, -1                 # mask = n-1
+        not s6, s5                      # s6 = ~mask
+        slli a6, a5, 2                  # a6 = n * 4 (offset for real/imag arrays)
+
+        li t4, 0                        # t4 = i = 0
+        vinnerloop:                     # for i = 0; i < N/2
+            bge t4, a2, vinnerloopend
+
+            vid.v v24                   # v24 = {0, 1, 2, ... VLEN-1}
+            vadd.vx v24, v24, t4        # v24 = {i, i+1, i+2, ... i+VLEN-1}
+
+            vand.vx v28, v24, s6        # v28 = i &  !mask
+            vsll.vi v28, v28, 1         # v28 = i & !mask << 1
+            vand.vx v24, v24, s5        # v24 = i & mask
+            vor.vv v24, v24, v28        # v24 = i & mask | i & !mask << 1
+            vsll.vi v24, v24, 2         # v24 = i * 4 (as we are working with 32-bit floats)
        
             # Calculating k and offest
             # k = (i * a ) & (N/2 -1)
@@ -296,15 +301,6 @@ vTransform:
             vfmacc.vv v20, v28, v8    # v20 = wrealk*imag[i+n] + wrealk*real{i+n}
 
             # Loading values from index i
-            # Calculate mask (i & n)
-            vsrl.vx v0, v24, s3    
-            vand.vi v0, v0, 1               # doing 4 bcause my indices are multiple of 4
-            vrsub.vi v28, v0, 1
-
-            # v8 is basicallt our v0.t mask but in normal form
-            vmul.vv v16, v16, v28         # multiply v16 by the mask making it 0 when (i&n)
-            vmul.vv v20, v20, v28         # multiply v20 by the mask making it 0 when (i&n)
-
             vloxei32.v v4, 0(a0), v24       # load real[i]
             vfadd.vv v28, v4, v16
             vfsub.vv v16, v4, v16
@@ -318,27 +314,9 @@ vTransform:
             # Calculate i+n offset *again* for storing
             vadd.vx v4, v24, a6      # v8 = (i+n)*4
 
-            # v8 and v12 contains the original values 
-            # from address a0 and a1
-            # v16 and v20 contains the new values 
-            # whih have to be written at plaved where v0==0
-            vrsub.vi v28, v0, 1
-            vmul.vv v16, v16, v28         # multiply v16 by the mask making it 0 when (i&n)
-            vmul.vv v20, v20, v28         # multiply v20 by the mask making it 0 when (i&n)
+            vsoxei32.v v16 , 0(a0), v4
+            vsoxei32.v v20 , 0(a1), v4
 
-            vloxei32.v v8 , 0(a0), v4
-            vloxei32.v v12 , 0(a1), v4
-            vmul.vv v8, v8, v0         # multiply v20 by the mask making it 0 when (i&n)
-            vmul.vv v12, v12, v0        # multiply v20 by the mask making it 0 when (i&n)
-            vor.vv v8, v8, v16
-            vor.vv v12, v12, v20
-
-            vsoxei32.v v8 , 0(a0), v4
-            vsoxei32.v v12 , 0(a1), v4
-
-            # incremenet v24(i) by vlen*4 (t5)
-            vadd.vx v24, v24, t5
-        
             add t4, t4, t0                  # i += Vlen
             
             j vinnerloop
