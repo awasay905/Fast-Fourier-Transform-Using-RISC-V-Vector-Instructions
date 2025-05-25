@@ -230,24 +230,18 @@ vTransform:
 
     # vTransform will work on the temp arrays
     li s1, 8192
-    lw s2, logsize
-    srl s1, s1, s2          # Stride for butterfly
+    lw a3, logsize
+    srl s1, s1, a3          # Stride for butterfly
     la t1, W_real_max
     la t2, W_imag_max
     
     li a5, 1                        # a5    = n     = 1
     srai a4, a2, 1                  # a4    = a     = N / 2
 
-    srai a2, a2, 1         # a2 = N / 2
+    srai a2, a2, 1                  # a2 = N / 2
     vsetvli t0, a2, e32, m4    
 
     li t3, 0                        # t3    = j     = 0
-    lw a3, logsize
-    
-
-    # t5 is vlen*4
-    slli t5, t0, 2
-
     # k = (i * a) % (n * a); can be done as 
     # k = (i * a) & (N/2 - 1); 
     # Calculate (N/2 - 1) in s0
