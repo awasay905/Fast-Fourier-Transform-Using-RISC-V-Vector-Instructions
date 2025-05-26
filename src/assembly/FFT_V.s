@@ -251,8 +251,7 @@ vTransform:
     forTransform:                       #runs logN times
         bge t3, a3, forTransformEnd
 
-        addi s5, a5, -1                 # mask = n-1
-        not s5, s5                      # s6 = ~mask
+        sub s5, zero, a5                # s5 = ~(n-1) = !mask
         slli a6, a5, 2                  # a6 = n * 4 (offset for real/imag arrays)
 
         li t4, 0                        # t4 = i = 0
