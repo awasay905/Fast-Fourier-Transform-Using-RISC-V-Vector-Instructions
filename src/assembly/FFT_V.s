@@ -229,9 +229,9 @@ vTransform:
     fcvt.s.w ft0, a3
 
     # vTransform will work on the temp arrays
-    li s1, 8192
-    lw a3, logsize
-    srl s1, s1, a3          # Stride for butterfly
+    li s1, 13               # 2^13 = 8192 = precalculated twiddle factor size
+    lw a3, logsize          # input size in log(n)
+    sub s1, s1, a3          # Stride for butterfly
     la t1, W_real_max
     la t2, W_imag_max
     
@@ -246,7 +246,9 @@ vTransform:
     # k = (i * a) & (N/2 - 1); 
     # Calculate (N/2 - 1) in s0
     addi s0, a4, -1  
-    slli s2, s0, 2              
+    slli s2, s0, 2   
+    sll s2, s2, s1                 # s2 = s2 * twiddleStride           
+    sll a4, a4, s1                 # a4 = a4 * twiddleStride
 
     forTransform:                       #runs logN times
         bge t3, a3, forTransformEnd
@@ -266,12 +268,11 @@ vTransform:
             vsll.vi v24, v24, 2         # v24 = i * 4 (as we are working with 32-bit floats)
        
             # Calculating k and offest
-            # k = (i * a ) & (N/2 -1)
+            # k = (i * a ) & (N/2 -1). I have precalulctaed A*strie and N/2-1 * stride
             vmul.vx v28, v24, a4
             vand.vx v28, v28, s2      
 
             # Load from W_array[k]
-            vmul.vx v28, v28, s1
             vloxei32.v v4, 0(t1), v28
             vloxei32.v v28, 0(t2), v28
 
