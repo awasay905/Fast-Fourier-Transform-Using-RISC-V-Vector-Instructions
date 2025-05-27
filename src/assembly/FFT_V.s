@@ -247,8 +247,10 @@ vTransform:
     # Calculate (N/2 - 1) in s0
     addi s0, a4, -1  
     slli s2, s0, 2   
-    sll s2, s2, s1                 # s2 = s2 * twiddleStride           
-    sll a4, a4, s1                 # a4 = a4 * twiddleStride
+    sll s2, s2, s1                 # s2 = s2 * twiddleStride
+    
+    addi a4, a3, -1                # a4 = N/2 in power of 2
+    add a4, a4, s1                 # a4 = a4 + twiddleStride
 
     forTransform:                       #runs logN times
         bge t3, a3, forTransformEnd
@@ -269,7 +271,7 @@ vTransform:
        
             # Calculating k and offest
             # k = (i * a ) & (N/2 -1). I have precalulctaed A*strie and N/2-1 * stride
-            vmul.vx v28, v24, a4
+            vsll.vx v28, v24, a4        # since a and stride were power of 2, i do shift
             vand.vx v28, v28, s2      
 
             # Load from W_array[k]
@@ -315,7 +317,7 @@ vTransform:
         vinnerloopend:
 
         slli a5, a5, 1                  # n = n * 2 
-        srai a4, a4, 1                  # a = a/2 
+        addi a4, a4, -1                 # a = a/2  in power of 2
         addi t3, t3, 1                  # j++
         j forTransform
     forTransformEnd:
