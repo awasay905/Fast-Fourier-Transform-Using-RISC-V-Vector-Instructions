@@ -151,6 +151,37 @@ void transform(float *real, float *imag, int N, bool inverse) //
   free(W_imag);
 }
 
+
+/*
+int  stride = 8192/N;
+stride = log2(stride);
+int n = 1;
+int a = N / 2;
+for (int j = 0; j < logint(N); j++)
+{
+    int mask = n - 1;
+    for (int i = 0; i < N/2; i++)
+    {
+        int index = (i & ~mask) << 1) + i;
+        
+        float temp_real = real[index];
+        float temp_imag = imag[index];
+        int k = (index * a)<<stride & (N/2 -1) << stride;
+        float W_real_k = W_real[k];
+        float W_imag_k = W_imag[k];
+        float temp1_real = W_real_k * real[index + n] - W_imag_k * imag[index + n];
+        float temp1_imag = W_real_k * imag[index + n] + W_imag_k * real[index + n];
+        
+        real[index] = temp_real + temp1_real;
+        imag[index] = temp_imag + temp1_imag;
+        real[index + n] = temp_real - temp1_real;
+        imag[index + n] = temp_imag - temp1_imag;
+    }
+    n *= 2;
+    a = a / 2;
+}
+*/
+
 void FFT(float *real, float *imag, int N, float d)
 {
   transform(real, imag, N, false);
