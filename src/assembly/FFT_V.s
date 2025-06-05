@@ -529,38 +529,17 @@ imag:
 
 # DO NOT CHANGE ANYTHING AFTER THIS LINE
 
-    .set halfDataSize, dataSize/2 
-    size: .word dataSize
-    step: .float 1.0
+size: .word dataSize
 
-    real_temp: 
-        .rept dataSize
-        .float 0
-        .endr
+real_temp: 
+    .rept dataSize
+    .float 0
+    .endr
 
-    imag_temp:
-        .rept dataSize
-        .float 0
-        .endr
-
-
-    NEG_TWO_PI: .float -6.28318530717958647692
-    half_pi_hi:    .float 1.57079637e+0  # π/2 high part
-    half_pi_lo:    .float -4.37113883e-8 # π/2 low part
-    const_2_pi:    .float 6.36619747e-1  # 2/π
-    const_12582912: .float 12582912.0    # 1.5 * 2^23
-    cos_coeff_0:   .float 2.44677067e-5  # Coefficient for cosine
-    cos_coeff_1:   .float -1.38877297e-3
-    cos_coeff_2:   .float 4.16666567e-2
-    cos_coeff_3:   .float -5.00000000e-1
-    cos_coeff_4:   .float 1.00000000e+0
-    sin_coeff_0:   .float 2.86567956e-6  # Coefficient for sine
-    sin_coeff_1:   .float -1.98559923e-4
-    sin_coeff_2:   .float 8.33338592e-3
-    sin_coeff_3:   .float -1.66666672e-1
-
-
-
+imag_temp:
+    .rept dataSize
+    .float 0
+    .endr
 
 .align 6  # Align to 64 bytes (2^6)
 W_real_max:
