@@ -1,6 +1,7 @@
 from numpy.typing import NDArray
 from typing import TypedDict, Dict
 import pickle
+import math
 import numpy as np
 VEER_TEMP_FOLDER_PATH = './veer/tempFiles'
 VEER_FOLDER_PATH = './veer'
@@ -145,6 +146,8 @@ def write_array_to_assembly_file(input_file: str, output_file: str, real: list[i
             # Insert a blank line and data size declaration
             new_data.append("\n")
             new_data.append(f".set dataSize, {array_size}\n")
+            log2_size = int(math.log2(array_size))
+            new_data.append(f"logsize: .word {log2_size}\n")
             
             # Insert new data between markers
             for i, data_line in enumerate(new_data):

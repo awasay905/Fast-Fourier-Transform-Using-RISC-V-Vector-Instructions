@@ -7,14 +7,12 @@ main:
     la ra, _finish
 
     lw a0, size                     # Load size of real/imag arrays into a0
-    call setlogN                    # Compute and store log2(size) for shared use by other functions
-
     
-
     # Perform  vFFT
     la a0, real                     # a0 = address of real[]
     la a1, imag                     # a1 = address of imag[]
     lw a2, size                     # a2 = size of arrays (N)
+    lw a3, logsize                  # a3 = log2(N)  
 
     call vFFT    
 
@@ -26,25 +24,6 @@ main:
 
 
 
-# Function: setlogN
-# Computes log2(N) for a 32-bit unsigned integer in a0 and stores it in `logsize` in memory.
-# Inputs:
-#   - a0: 32-bit unsigned integer N
-# Outputs:
-#   - None. Result is saved in memory at 'logsize'
-# Clobbers: t0, t1
-setlogN:
-    clz t0, a0                      # Count leading zeros. Helps in quick log2
-    li t1, 31              
-    sub t1, t1, t0                  # Subtract clz result from 31 to get log2
-    la t0, logsize
-    sw t1, 0(t0)                    # Save to memory
-    
-    jr ra
-
-
-
-
 # Function: vOrdina
 #   Computes bit-reversed indices for an array of elements and performs in-place swaps
 #   on the real and imaginary arrays accordingly. This is a key step in the butterfly
@@ -53,6 +32,7 @@ setlogN:
 #   - a0: Base address of the real array
 #   - a1: Base address of the imaginary array
 #   - a2: Number of elements (N)
+#   - a3: log2(N)
 # Outputs:
 #   - None. The real and imaginary arrays are modified in-place with elements
 #     reordered according to their bit-reversed indices.
@@ -77,7 +57,7 @@ vOrdina:
     # Load pointers to temp array
     la t0, real_temp
     la t1, imag_temp
-    lw s0, logsize
+    mv s0, a3
     
     vsetvli t3, a2, e32, m8         # 4-Grouped Vector
     slli t6, t3, 2
@@ -202,7 +182,7 @@ vOrdina:
 #   - a1: Base address of the imaginary array
 #   - a2: Number of elements (N)
 #   - a3: Inverse flag (1 for IFFT, 0 for FFT)
-#
+#   - a4: log2(N)
 # Outputs:
 #   - None. The real and imaginary arrays are modified in-place to contain the FFT/IFFT result.
 #
@@ -223,6 +203,7 @@ vTransform:
     sw s0,32(sp)
 
     # For Index Reverse (Butterfly)
+    mv a3, a4
     call vOrdina                    
 
     # Convert a3 (integer: 1 or -1) to a float
@@ -230,7 +211,7 @@ vTransform:
 
     # vTransform will work on the temp arrays
     li s1, 13               # 2^13 = 8192 = precalculated twiddle factor size
-    lw a3, logsize          # input size in log(n)
+    mv a3, a4               # input size in log(n)
     sub s1, s1, a3          # Stride for butterfly
     la t1, W_real_max
     la t2, W_imag_max
@@ -346,17 +327,21 @@ vTransform:
 #   - a0: Base address of the real array
 #   - a1: Base address of the imaginary array
 #   - a2: Number of elements (N)
+#   - a3: log2(N)
 vFFT:                     
-    addi sp, sp, -8
+    addi sp, sp, -12
     sw ra, 0(sp)
-    sw a3, 8(sp)
+    sw a3, 4(sp)
+    sw a4, 8(sp)
 
+    mv a4, a3
     li a3, 1                        # Inverse Flag a3 = 1 for FFT
     call vTransform
    
     lw ra, 0(sp)
-    lw a2, 8(sp)
-    addi sp, sp, 8
+    lw a3, 4(sp)
+    lw a4, 8(sp)
+    addi sp, sp, 12
     
     ret
 
@@ -484,6 +469,7 @@ _finish:
 .data  
 # PUT INPUT HERE, DO NO CHANHE ABOVE THIS
 .set dataSize, 1024
+logsize: .word 10
 
 real:
 .float 0.345864355564, 0.344289541245, 0.341857761145, 0.338721007109,  0.335035264492, 0.330976068974, 0.326725721359, 0.322472512722,  0.318407624960, 0.314724355936, 0.311603963375, 0.309233903885,  0.307782292366, 0.307411909103, 0.308264821768, 0.310470193624,  0.314136326313, 0.319348454475, 0.326174646616, 0.334654450417,  0.344804137945, 0.356615900993, 0.370047450066, 0.385062575340,  0.401550650597, 0.419437438250, 0.438565135002, 0.458814322948,  0.480014592409, 0.501989483833, 0.524550676346, 0.547500908375
@@ -531,7 +517,6 @@ imag:
     .set halfDataSize, dataSize/2 
     size: .word dataSize
     step: .float 1.0
-    logsize: .word 0
 
     real_temp: 
         .rept dataSize
