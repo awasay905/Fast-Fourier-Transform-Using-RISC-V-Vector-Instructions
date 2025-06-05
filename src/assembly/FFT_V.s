@@ -6,13 +6,13 @@ main:
     la sp, STACK
     la ra, _finish
 
-    lw a0, size                     # Load size of real/imag arrays into a0
-    
     # Perform  vFFT
     la a0, real                     # a0 = address of real[]
     la a1, imag                     # a1 = address of imag[]
     lw a2, size                     # a2 = size of arrays (N)
     lw a3, logsize                  # a3 = log2(N)  
+    la a5, real_temp              # a5 = address of temp real array
+    la a6, imag_temp              # a6 = address of temp imaginary array
 
     call vFFT    
 
@@ -33,6 +33,8 @@ main:
 #   - a1: Base address of the imaginary array
 #   - a2: Number of elements (N)
 #   - a3: log2(N)
+#   - a4: Temporary storage for bit-reversed indices real
+#   - a5: Temporary storage for bit-reversed indices imaginary
 # Outputs:
 #   - None. The real and imaginary arrays are modified in-place with elements
 #     reordered according to their bit-reversed indices.
@@ -55,8 +57,8 @@ vOrdina:
 
 
     # Load pointers to temp array
-    la t0, real_temp
-    la t1, imag_temp
+    mv t0, a4
+    mv t1, a5
     mv s0, a3
     
     vsetvli t3, a2, e32, m8         # 4-Grouped Vector
@@ -131,8 +133,8 @@ vOrdina:
     endVOrdinaLoop:
 
     slli t6, t3, 2                  # Shift VLEN by 4. Now  just add shifted vlen to shifted indexes
-    la t4, real_temp
-    la t5, imag_temp
+    lw t4, 16(sp)           # saved a4
+    lw t5, 20(sp)           # saved a5
     li t1, 0              
     vOrdinaLoop2:                   
     bge t1, a2, endvOrdinaLoop2   
@@ -183,6 +185,8 @@ vOrdina:
 #   - a2: Number of elements (N)
 #   - a3: Inverse flag (1 for IFFT, 0 for FFT)
 #   - a4: log2(N)
+#   - a5: temp real array for bit-reversed indices
+#   - a6: temp imaginary array for bit-reversed indices
 # Outputs:
 #   - None. The real and imaginary arrays are modified in-place to contain the FFT/IFFT result.
 #
@@ -204,8 +208,11 @@ vTransform:
 
     # For Index Reverse (Butterfly)
     mv a3, a4
+    mv a4, a5
+    mv a5, a6
     call vOrdina                    
 
+    lw a4,20(sp)  # restore a4 from stack because we modified it for ordina
     # Convert a3 (integer: 1 or -1) to a float
     fcvt.s.w ft0, a3
 
@@ -328,6 +335,8 @@ vTransform:
 #   - a1: Base address of the imaginary array
 #   - a2: Number of elements (N)
 #   - a3: log2(N)
+#   - a5: Temporary storage for bit-reversed indices real
+#   - a6: Temporary storage for bit-reversed indices imaginary
 vFFT:                     
     addi sp, sp, -12
     sw ra, 0(sp)
@@ -356,13 +365,18 @@ vFFT:
 #   - a0: Base address of the real array
 #   - a1: Base address of the imaginary array
 #   - a2: Number of elements (N)
+#   - a3: log2(N)
+#   - a5: Temporary storage for bit-reversed indices real
+#   - a6: Temporary storage for bit-reversed indices imaginary
 vIFFT:              
-    addi sp, sp, -16
+    addi sp, sp, -20
     sw ra, 0(sp)            
     sw a0, 4(sp)    
     sw a1, 8(sp)
     sw a3, 12(sp)
+    sw a4, 16(sp)
     
+    mv a4, a3
     li a3, -1                       # Inverse Flag. a3 = -1 for IFFT
     call vTransform
     
@@ -399,7 +413,8 @@ vIFFT:
     lw a0, 4(sp)    
     lw a1, 8(sp)
     lw a3, 12(sp)
-    addi sp, sp, 16
+    lw a4, 16(sp)
+    addi sp, sp, 20
 
     ret
 
