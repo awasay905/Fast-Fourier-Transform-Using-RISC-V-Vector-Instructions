@@ -212,100 +212,119 @@ vTransform:
     mv a5, a6
     call vOrdina                    
 
+    lw a3,16(sp)  # restore a3 from stack because we modified it for ordina
     lw a4,20(sp)  # restore a4 from stack because we modified it for ordina
     # Convert a3 (integer: 1 or -1) to a float
     fcvt.s.w ft0, a3
 
     # vTransform will work on the temp arrays
-    li s1, 13               # 2^13 = 8192 = precalculated twiddle factor size
-    mv a3, a4               # input size in log(n)
-    sub s1, s1, a3          # Stride for butterfly
+    li s1, 13
+    lw s2, logsize
+    sub s1, s1, s2          # Stride for butterfly
     la t1, W_real_max
     la t2, W_imag_max
     
+    vsetvli t0, a2, e32, m4    
+
     li a5, 1                        # a5    = n     = 1
     srai a4, a2, 1                  # a4    = a     = N / 2
 
-    srai a2, a2, 1                  # a2 = N / 2
-    vsetvli t0, a2, e32, m4    
-
     li t3, 0                        # t3    = j     = 0
+    lw a3, logsize
+    
+
+    # t5 is vlen*4
+    slli t5, t0, 2
+
     # k = (i * a) % (n * a); can be done as 
     # k = (i * a) & (N/2 - 1); 
     # Calculate (N/2 - 1) in s0
-    addi s0, a4, -1  
-    slli s2, s0, 2   
-    sll s2, s2, s1                 # s2 = s2 * twiddleStride
-    
-    addi a4, a3, -1                # a4 = N/2 in power of 2
-    add a4, a4, s1                 # a4 = a4 + twiddleStride
+    addi s0, a4, -1                
 
-    forTransform:                       #runs logN times
+
+    forTransform:                   #runs logN times
         bge t3, a3, forTransformEnd
-
-        sub s5, zero, a5                # s5 = ~(n-1) = !mask
-        slli a6, a5, 2                  # a6 = n * 4 (offset for real/imag arrays)
-
         li t4, 0                        # t4 = i = 0
-        vinnerloop:                     # for i = 0; i < N/2
-            bge t4, a2, vinnerloopend
+        
+        # instead of recalculating (i+n)*4 and i*4
+        # precalculate i and i+n, multiply by 4
+        # keep adding vlen*4 to them in loop
+        vid.v v28
+        vsll.vi v20, v28, 2  # i*4
 
-            vid.v v24                   # v24 = {0, 1, 2, ... VLEN-1}
-            vadd.vx v24, v24, t4        # v24 = {i, i+1, i+2, ... i+VLEN-1}
+        # initializ i*a array then incrmement it in loop end by a*VLEN
+        # t6 will be a*vlen
+        vmul.vx v24, v28, a4
+        mul t6, a4, t0
+        # also shift n by 2 to calculate i*4 & n without doing one addition
+        slli a6, a5, 2
 
-            vand.vx v28, v24, s5        # v28 = i &  !mask
-            vadd.vv v24, v28, v24        # v28 = (i & !mask)  +  i
-            vsll.vi v24, v24, 2         # v24 = i * 4 (as we are working with 32-bit floats)
-       
+        vinnerloop:                     # for i = 0; i < N
+            bge t4, a2, vinnerloopend       # i  >= num elemenets
+            
+            # Calculate mask (i & n)
+            vand.vx v0, v20, a6           
+            vmseq.vx v0, v0, zero         # if (!(i & n)) which means this loop work only when result is 0
+            # Start of If block. Every operation is masked wrt v0
+
             # Calculating k and offest
-            # k = (i * a ) & (N/2 -1). I have precalulctaed A*strie and N/2-1 * stride
-            vsll.vx v28, v24, a4        # since a and stride were power of 2, i do shift
-            vand.vx v28, v28, s2      
+            # k = (i * a ) & (N/2 -1)
+            vand.vx v28, v24, s0      
+            vsll.vi v28, v28, 2 
 
             # Load from W_array[k]
+            vsll.vx v28, v28, s1
             vloxei32.v v4, 0(t1), v28
             vloxei32.v v28, 0(t2), v28
 
             # Now v28 contains W_imag for FFT, or -W_imag for IFFT
             vfsgnjx.vf v28, v28, ft0
 
-            # Calculate i+n offset *dynamically* using a temporary register (e.g., v16)
-            vadd.vx v16, v24, a6      # v16 = (i+n)*4 temporarily
-            
             # Load from array[i+n]
-            vloxei32.v v8, 0(a0), v16
-            vloxei32.v v12, 0(a1), v16
+            slli s5, t4, 2 # i*4  # a6 is n*4
+            add s6, s5, a6 # s6 = i*4 + n*4
+            add s7, s6, a0 # s7 = address of real[i+n]
+            add s8, s6, a1 # s8 = address of imag[i+n]
+            vle32.v v8, 0(s7)
+            vle32.v v12, 0(s8), v0.t
 
             vfmul.vv v16, v4, v8     # v16 = wreal*real[i+n]
             vfnmsac.vv v16, v28, v12   # v16 = v16 - v28*v12 = wreal*real[i+n] - wimag*imag[i+n]
 
-            vfmul.vv v20, v4, v12     # wrealk*imag{i+n}
-            vfmacc.vv v20, v28, v8    # v20 = wrealk*imag[i+n] + wrealk*real{i+n}
-
-            # Loading values from index i
-            vloxei32.v v4, 0(a0), v24       # load real[i]
-            vfadd.vv v28, v4, v16
-            vfsub.vv v16, v4, v16
-            vsoxei32.v v28 , 0(a0), v24      # save to real[i]
-
-            vloxei32.v v28, 0(a1),v24  # load imag[i]
-            vfadd.vv v4, v28, v20
-            vfsub.vv v20, v28, v20
-            vsoxei32.v v4, 0(a1), v24 # save to imag[i]
-
-            # Calculate i+n offset *again* for storing
-            vadd.vx v4, v24, a6      # v8 = (i+n)*4
-
-            vsoxei32.v v16 , 0(a0), v4
-            vsoxei32.v v20 , 0(a1), v4
-
-            add t4, t4, t0                  # i += Vlen
+            vfmul.vv v12, v4, v12     # wrealk*imag{i+n}
+            vfmacc.vv v12, v28, v8    # v12 = wrealk*imag[i+n] + wrealk*real{i+n}
             
+            # Loading values from index
+            add s3, s5, a0
+            add s4, s5, a1
+            vle32.v v4, 0(s3), v0.t
+            vle32.v v28, 0(s4) , v0.t  
+
+            vfadd.vv v8, v4, v16, v0.t
+            vfsub.vv v4, v4, v16, v0.t
+            vfadd.vv v16, v28, v12, v0.t
+            vfsub.vv v28, v28, v12, v0.t
+
+            # Saving values to index i
+            vse32.v v8 , 0(s3), v0.t 
+            vse32.v v16, 0(s4), v0.t 
+
+            # Saving values to index i+n
+            vse32.v v4 , 0(s7), v0.t  
+            vse32.v v28 , 0(s8), v0.t
+
+            # incremenet v20(i) by vlen*4 (t5)
+            vadd.vx v20, v20, t5
+
+            # incrmement i*a by a*VLEN
+            vadd.vx v24, v24, t6
+        
+            add t4, t4, t0                  # i += Vlen
             j vinnerloop
         vinnerloopend:
 
         slli a5, a5, 1                  # n = n * 2 
-        addi a4, a4, -1                 # a = a/2  in power of 2
+        srai a4, a4, 1                  # a = a/2 
         addi t3, t3, 1                  # j++
         j forTransform
     forTransformEnd:
